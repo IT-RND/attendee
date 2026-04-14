@@ -25,6 +25,15 @@ class StorageAlias(Storage):
     def delete(self, name):
         return self._wrapped.delete(name)
 
+    def exists(self, name):
+        return self._wrapped.exists(name)
+
+    def save(self, name, content, max_length=None):
+        return self._wrapped.save(name, content, max_length=max_length)
+
+    def open(self, name, mode="rb"):
+        return self._wrapped.open(name, mode=mode)
+
     def url(self, name):
         return self._wrapped.url(name)
 

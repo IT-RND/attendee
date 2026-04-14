@@ -80,6 +80,42 @@ class TestCreateBot(TestCase):
         self.assertIsNotNone(bot)
         self.assertIsNotNone(bot.recordings.first())
         self.assertIsNone(error)
+        self.assertEqual(bot.recordings.first().transcription_provider, TranscriptionProviders.DEEPGRAM)
+        self.assertEqual(bot.settings["transcription_settings"]["deepgram"]["language"], "id")
+
+    def test_create_bot_defaults_name_to_boga_assistant(self):
+        bot, error = create_bot(data={"meeting_url": "https://meet.google.com/abc-defg-hij"}, source=BotCreationSource.API, project=self.project)
+        self.assertIsNotNone(bot)
+        self.assertIsNone(error)
+        self.assertEqual(bot.name, "Boga Assistant")
+
+    def test_create_teams_bot_with_indonesian_deepgram_and_default_name(self):
+        bot, error = create_bot(
+            data={
+                "meeting_url": "https://teams.microsoft.com/meet/42940830536443?p=s44xaomB5Khvg9XfiA",
+                "transcription_settings": {"deepgram": {"language": "id-ID"}},
+            },
+            source=BotCreationSource.API,
+            project=self.project,
+        )
+        self.assertIsNotNone(bot)
+        self.assertIsNone(error)
+        self.assertEqual(bot.name, "Boga Assistant")
+        self.assertEqual(bot.recordings.first().transcription_provider, TranscriptionProviders.DEEPGRAM)
+        self.assertEqual(bot.settings["transcription_settings"]["deepgram"]["language"], "id")
+
+    def test_create_bot_normalizes_case_insensitive_indonesian_deepgram_language(self):
+        bot, error = create_bot(
+            data={
+                "meeting_url": "https://teams.microsoft.com/meet/42940830536443?p=s44xaomB5Khvg9XfiA",
+                "transcription_settings": {"deepgram": {"language": "id-id"}},
+            },
+            source=BotCreationSource.API,
+            project=self.project,
+        )
+        self.assertIsNotNone(bot)
+        self.assertIsNone(error)
+        self.assertEqual(bot.settings["transcription_settings"]["deepgram"]["language"], "id")
 
     def test_create_zoom_bot_with_default_settings(self):
         ZoomOAuthApp.objects.create(project=self.project, client_id="123")
@@ -90,6 +126,7 @@ class TestCreateBot(TestCase):
         self.assertIsNone(error)
         self.assertEqual(bot.recordings.first().transcription_provider, TranscriptionProviders.DEEPGRAM)
         self.assertEqual(bot.use_zoom_web_adapter(), False)
+        self.assertEqual(bot.settings["transcription_settings"]["deepgram"]["language"], "id")
 
     def test_create_zoom_bot_with_default_settings_and_web_adapter(self):
         ZoomOAuthApp.objects.create(project=self.project, client_id="123")
@@ -97,8 +134,9 @@ class TestCreateBot(TestCase):
         self.assertIsNotNone(bot)
         self.assertIsNotNone(bot.recordings.first())
         self.assertIsNone(error)
-        self.assertEqual(bot.recordings.first().transcription_provider, TranscriptionProviders.CLOSED_CAPTION_FROM_PLATFORM)
+        self.assertEqual(bot.recordings.first().transcription_provider, TranscriptionProviders.DEEPGRAM)
         self.assertEqual(bot.use_zoom_web_adapter(), True)
+        self.assertEqual(bot.settings["transcription_settings"]["deepgram"]["language"], "id")
 
     def test_create_teams_bot_with_bracket_in_the_url(self):
         teams_url_with_trailing_carat = "https://teams.microsoft.com/l/meetup-join/19%3ameeting_ttttttttttttttttttttttcqqqqqqqqqqqqqqqqqqqqqqqqq%40thread.v2/0?context=%7b%22Tid%22%3a%22b8291b4b-f793-49bc-1111-111111111111%22%2c%22Oid%22%3a%22216d2e11-ffff-ffff-1111-ffffffffffff%22%7d>"
@@ -107,6 +145,8 @@ class TestCreateBot(TestCase):
         teams_url_normalized = 'https://teams.microsoft.com/l/meetup-join/19:meeting_ttttttttttttttttttttttcqqqqqqqqqqqqqqqqqqqqqqqqq@thread.v2/0?context={"Tid":"b8291b4b-f793-49bc-1111-111111111111","Oid":"216d2e11-ffff-ffff-1111-ffffffffffff"}'
         self.assertEqual(bot.meeting_url, teams_url_normalized)
         self.assertIsNone(error)
+        self.assertEqual(bot.recordings.first().transcription_provider, TranscriptionProviders.DEEPGRAM)
+        self.assertEqual(bot.settings["transcription_settings"]["deepgram"]["language"], "id")
 
     def test_create_bot_with_explicit_transcription_settings(self):
         """Test creating bots with explicit transcription settings for different providers and meeting types"""
@@ -296,7 +336,8 @@ class TestCreateBot(TestCase):
         )
         self.assertIsNotNone(bot1)
         self.assertIsNone(error1)
-        self.assertEqual(bot1.recordings.first().transcription_provider, TranscriptionProviders.CLOSED_CAPTION_FROM_PLATFORM)
+        self.assertEqual(bot1.recordings.first().transcription_provider, TranscriptionProviders.DEEPGRAM)
+        self.assertEqual(bot1.settings["transcription_settings"]["deepgram"]["language"], "id")
 
         # Second bot creation with the same key should fail
         bot2, error2 = create_bot(

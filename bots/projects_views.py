@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models, transaction
-from django.http import HttpResponse, QueryDict
+from django.http import HttpResponse, JsonResponse, QueryDict, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views import View
@@ -20,6 +20,15 @@ from accounts.models import User, UserRole
 
 from .bots_api_utils import BotCreationSource, create_bot, create_webhook_subscription
 from .launch_bot_utils import launch_bot
+from .meeting_summary_utils import (
+    MeetingSummaryError,
+    ensure_meeting_summary_pdf,
+    generate_meeting_summary,
+    generate_meeting_summary_stream,
+    get_meeting_summary_availability_message,
+    meeting_summary_is_ready,
+    save_meeting_summary_artifacts,
+)
 from .models import (
     ApiKey,
     Bot,
@@ -53,6 +62,7 @@ from .models import (
     WebhookTriggerTypes,
     ZoomOAuthApp,
 )
+from .storage import remote_storage_url
 from .stripe_utils import credit_amount_for_purchase_amount_dollars, process_checkout_session_completed
 from .tasks.deliver_webhook_task import deliver_webhook
 from .utils import generate_recordings_json_for_bot_detail_view
@@ -854,12 +864,17 @@ class ProjectBotDetailView(LoginRequiredMixin, ProjectUrlContextMixin, View):
                     network_stats["total_rx_errors"] += network.get("rx_errors_delta") or 0
                     network_stats["total_tx_errors"] += network.get("tx_errors_delta") or 0
 
+        meeting_summary_status_message = get_meeting_summary_availability_message(bot)
+
         context = self.get_project_context(object_id, project)
         context.update(
             {
                 "bot": bot,
                 "BotStates": BotStates,
                 "SessionTypes": SessionTypes,
+                "meeting_summary_ready": meeting_summary_is_ready(bot),
+                "meeting_summary_status_message": meeting_summary_status_message,
+                "meeting_summary": bot.meeting_summary or "",
                 "webhook_delivery_attempts": webhook_delivery_attempts,
                 "chat_messages": chat_messages,
                 "participants": participants,
@@ -877,6 +892,100 @@ class ProjectBotDetailView(LoginRequiredMixin, ProjectUrlContextMixin, View):
         )
 
         return render(request, "projects/project_bot_detail.html", context)
+
+
+class GenerateMeetingSummaryView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    def post(self, request, object_id, bot_object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+
+        meeting_summary = None
+        meeting_summary_error = None
+        meeting_summary_status_message = get_meeting_summary_availability_message(bot)
+
+        try:
+            meeting_summary = generate_meeting_summary(bot)
+            save_meeting_summary_artifacts(bot, meeting_summary)
+        except MeetingSummaryError as exc:
+            meeting_summary_error = str(exc)
+
+        context = {
+            "project": project,
+            "bot": bot,
+            "meeting_summary": meeting_summary,
+            "meeting_summary_error": meeting_summary_error,
+            "meeting_summary_ready": meeting_summary is not None or meeting_summary_is_ready(bot),
+            "meeting_summary_status_message": meeting_summary_status_message,
+        }
+        return render(request, "projects/partials/project_bot_summary.html", context)
+
+
+class StreamMeetingSummaryView(LoginRequiredMixin, View):
+    def post(self, request, object_id, bot_object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+
+        try:
+            stream = generate_meeting_summary_stream(bot)
+        except MeetingSummaryError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+
+        def event_stream():
+            collected = []
+            try:
+                for chunk in stream:
+                    collected.append(chunk)
+                    yield f"data: {json.dumps({'delta': chunk})}\n\n"
+            except MeetingSummaryError as exc:
+                yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+            except Exception:
+                logger.exception("Unexpected error during meeting summary streaming for bot %s", bot.object_id)
+                yield f"data: {json.dumps({'error': 'An unexpected error occurred. Please try again.'})}\n\n"
+            finally:
+                full_text = "".join(collected).strip()
+                if full_text:
+                    save_meeting_summary_artifacts(bot, full_text)
+                yield "data: [DONE]\n\n"
+
+        response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+        response["Cache-Control"] = "no-cache"
+        response["X-Accel-Buffering"] = "no"
+        return response
+
+
+class SaveMeetingSummaryView(LoginRequiredMixin, View):
+    def post(self, request, object_id, bot_object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+        markdown_content = data.get("markdown", "").strip()
+        if not markdown_content:
+            return JsonResponse({"error": "Summary content cannot be empty"}, status=400)
+
+        save_meeting_summary_artifacts(bot, markdown_content)
+        return JsonResponse({"status": "ok"})
+
+
+class DownloadMeetingSummaryPdfView(LoginRequiredMixin, View):
+    def get(self, request, object_id, bot_object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+
+        if bot.meeting_summary_pdf and bot.meeting_summary_pdf.name:
+            return redirect(remote_storage_url(bot.meeting_summary_pdf))
+
+        if not (bot.meeting_summary or "").strip():
+            return HttpResponse("Meeting summary not found", status=404)
+
+        if not ensure_meeting_summary_pdf(bot):
+            return HttpResponse("Meeting summary PDF could not be generated", status=500)
+
+        return redirect(remote_storage_url(bot.meeting_summary_pdf))
 
 
 class ProjectBotRecordingsView(LoginRequiredMixin, ProjectUrlContextMixin, View):

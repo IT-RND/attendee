@@ -715,12 +715,18 @@ class Bot(models.Model):
     zoom_rtms_stream_id = models.CharField(max_length=255, null=True, blank=True)
     session_type = models.IntegerField(choices=SessionTypes.choices, default=SessionTypes.BOT, db_default=SessionTypes.BOT, null=False)
 
+    meeting_summary = models.TextField(null=True, blank=True)
+    meeting_summary_pdf = models.FileField(storage=StorageAlias("recordings"), null=True, blank=True)
+
     def delete_data(self):
         # Check if bot is in a state where the data deleted event can be created
         if not BotEventManager.event_can_be_created_for_state(BotEventTypes.DATA_DELETED, self.state):
             raise ValueError("Bot is not in a state where the data deleted event can be created")
 
         with transaction.atomic():
+            if self.meeting_summary_pdf and self.meeting_summary_pdf.name:
+                self.meeting_summary_pdf.delete()
+
             # Delete all debug screenshots from bot events
             BotDebugScreenshot.objects.filter(bot_event__bot=self).delete()
 
@@ -1799,9 +1805,12 @@ class BotEventManager:
                     if new_state == BotStates.FATAL_ERROR:
                         cls.after_new_state_is_fatal_error(bot=bot, event_type=event_type, event_sub_type=event_sub_type, new_state=new_state)
 
-                    # If we transitioned to a post meeting state
-                    transitioned_to_post_meeting_state = cls.is_post_meeting_state(new_state) and not cls.is_post_meeting_state(old_state)
-                    if transitioned_to_post_meeting_state:
+                    # Start post-meeting cleanup as soon as we enter POST_PROCESSING.
+                    # Otherwise bots can sit there waiting on utterances while the
+                    # recording/transcription state is still marked in progress.
+                    entered_post_processing = new_state == BotStates.POST_PROCESSING and old_state != BotStates.POST_PROCESSING
+                    transitioned_to_post_meeting_state = cls.is_post_meeting_state(new_state) and old_state not in [BotStates.POST_PROCESSING, *BotStates.post_meeting_states()]
+                    if entered_post_processing or transitioned_to_post_meeting_state:
                         # This helper method handles setting the state for recordings and credits for when the bot transitions to a post meeting state
                         # It returns a dictionary of additional event metadata that should be added to the event
                         additional_event_metadata = cls.after_transition_to_post_meeting_state(bot=bot, event_type=event_type, new_state=new_state)
@@ -2222,6 +2231,30 @@ class RecordingManager:
 
         recording.state = RecordingStates.FAILED
         recording.save()
+
+    @classmethod
+    def set_recording_complete_from_failed(cls, recording: Recording):
+        """Corrects a recording that was prematurely marked as FAILED back to COMPLETE.
+
+        This handles the race condition where terminate_recording() runs before
+        the S3 upload completes in cleanup(). terminate_recording checks
+        recording.file which is still empty at that point, so it marks the
+        recording as FAILED. Once the upload finishes and recording.file is set,
+        this method corrects the state to COMPLETE.
+        """
+        recording.refresh_from_db()
+
+        if recording.state == RecordingStates.COMPLETE:
+            return
+        if recording.state != RecordingStates.FAILED:
+            raise ValueError(f"Invalid state transition. Recording {recording.id} is in state {recording.get_state_display()}")
+
+        recording.state = RecordingStates.COMPLETE
+        recording.completed_at = timezone.now()
+        recording.save()
+
+        if recording.transcription_state == RecordingTranscriptionStates.IN_PROGRESS and Utterance.objects.filter(recording=recording, transcription__isnull=True).count() == 0:
+            RecordingManager.set_recording_transcription_complete(recording)
 
     @classmethod
     def set_recording_transcription_in_progress(cls, recording: Recording):

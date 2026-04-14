@@ -211,6 +211,10 @@
         </div>
     </div>
 
+    {% if bot.state == BotStates.POST_PROCESSING or bot.state == BotStates.ENDED or bot.state == BotStates.FATAL_ERROR or bot.state == BotStates.DATA_DELETED %}
+        {% include 'projects/partials/project_bot_summary.html' %}
+    {% endif %}
+
     <ul class="nav nav-tabs mb-3" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="recordings-tab" data-bs-toggle="tab" 

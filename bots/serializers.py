@@ -8,6 +8,12 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_BOT_NAME = "Boga Assistant"
+DEFAULT_DEEPGRAM_LANGUAGE = "id"
+DEEPGRAM_LANGUAGE_ALIASES = {
+    "id-id": "id",
+}
+
 import jsonschema
 from dateutil.relativedelta import relativedelta
 from django.utils import timezone
@@ -456,6 +462,17 @@ def _validate_metadata_attribute(value):
         raise serializers.ValidationError(f"Metadata must be less than {settings.MAX_METADATA_LENGTH} characters")
 
     return value
+
+
+def _normalize_deepgram_language_code(language_code):
+    if not isinstance(language_code, str):
+        return language_code
+
+    return DEEPGRAM_LANGUAGE_ALIASES.get(language_code.strip().lower(), language_code)
+
+
+def _default_bot_transcription_settings():
+    return {"deepgram": {"language": DEFAULT_DEEPGRAM_LANGUAGE}}
 
 
 class BotValidationMixin:
@@ -1114,18 +1131,22 @@ class CreateAsyncTranscriptionSerializer(serializers.Serializer):
 @extend_schema_serializer(
     examples=[
         OpenApiExample(
-            "Valid meeting URL",
+            "Teams bot with Indonesian Deepgram transcription",
             value={
-                "meeting_url": "https://zoom.us/j/123?pwd=456",
-                "bot_name": "My Bot",
+                "meeting_url": "https://teams.microsoft.com/meet/42940830536443?p=s44xaomB5Khvg9XfiA",
+                "transcription_settings": {
+                    "deepgram": {
+                        "language": "id-ID",
+                    }
+                },
             },
-            description="Example of a valid Zoom meeting URL",
+            description=f"Example of a valid Teams meeting URL using Deepgram Indonesian transcription. If bot_name is omitted, it defaults to '{DEFAULT_BOT_NAME}'.",
         )
     ]
 )
 class CreateBotSerializer(BotValidationMixin, serializers.Serializer):
     meeting_url = serializers.CharField(help_text="The URL of the meeting to join, e.g. https://zoom.us/j/123?pwd=456")
-    bot_name = serializers.CharField(help_text="The name of the bot to create, e.g. 'My Bot'")
+    bot_name = serializers.CharField(help_text=f"The name of the bot to create. Defaults to '{DEFAULT_BOT_NAME}' if omitted.", required=False, default=DEFAULT_BOT_NAME)
     bot_image = BotImageSerializer(help_text="The image for the bot", required=False, default=None)
     metadata = MetadataJSONField(help_text="JSON object containing metadata to associate with the bot", required=False, default=None)
     bot_chat_message = BotChatMessageRequestSerializer(help_text="The chat message the bot sends after it joins the meeting", required=False, default=None)
@@ -1301,15 +1322,8 @@ class CreateBotSerializer(BotValidationMixin, serializers.Serializer):
 
         # Set a default transcription_settings value if nothing given
         if value is None:
-            if meeting_type == MeetingTypes.ZOOM:
-                if use_zoom_web_adapter:
-                    value = {"meeting_closed_captions": {}}
-                else:
-                    value = {"deepgram": {"language": "multi"}}
-            elif meeting_type == MeetingTypes.GOOGLE_MEET:
-                value = {"meeting_closed_captions": {}}
-            elif meeting_type == MeetingTypes.TEAMS:
-                value = {"meeting_closed_captions": {}}
+            if meeting_type in [MeetingTypes.ZOOM, MeetingTypes.GOOGLE_MEET, MeetingTypes.TEAMS]:
+                value = _default_bot_transcription_settings()
             else:
                 return None
 
@@ -1321,6 +1335,8 @@ class CreateBotSerializer(BotValidationMixin, serializers.Serializer):
         # If deepgram key is specified but language is not, set to "multi"
         if "deepgram" in value and ("language" not in value["deepgram"] or value["deepgram"]["language"] is None):
             value["deepgram"]["language"] = "multi"
+        elif "deepgram" in value:
+            value["deepgram"]["language"] = _normalize_deepgram_language_code(value["deepgram"]["language"])
 
         initial_data_with_value = {**self.initial_data, "transcription_settings": value}
 

@@ -133,10 +133,12 @@ paths:
             examples:
               ValidMeetingURL:
                 value:
-                  meeting_url: https://zoom.us/j/123?pwd=456
-                  bot_name: My Bot
-                summary: Valid meeting URL
-                description: Example of a valid Zoom meeting URL
+                  meeting_url: https://teams.microsoft.com/meet/42940830536443?p=s44xaomB5Khvg9XfiA
+                  transcription_settings:
+                    deepgram:
+                      language: id-ID
+                summary: Teams bot with Indonesian Deepgram transcription
+                description: Example of a valid Teams meeting URL using Deepgram Indonesian transcription. If bot_name is omitted, it defaults to 'Boga Assistant'.
         required: true
       security:
       - {}
@@ -2061,7 +2063,7 @@ components:
         bot_name:
           type: string
           minLength: 1
-          description: The name of the bot to create, e.g. 'My Bot'
+          description: The name of the bot to create. Defaults to 'Boga Assistant' if omitted.
         bot_image:
           allOf:
           - $ref: '#/components/schemas/BotImageRequest'
@@ -2758,7 +2760,6 @@ components:
           required: []
           additionalProperties: false
       required:
-      - bot_name
       - meeting_url
     CreateCalendarRequest:
       type: object

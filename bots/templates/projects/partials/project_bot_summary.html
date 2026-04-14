@@ -1,0 +1,449 @@
+<div id="meeting-summary-panel" class="card detail-card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+            <div>
+                <h5 class="card-title mb-1">Meeting Summary</h5>
+                <p class="text-muted small mb-0">Generate a GPT-5.4 summary in Bahasa Indonesia from the meeting transcript.</p>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <span id="summary-save-status" class="text-muted small" style="display:none;"></span>
+                {% if meeting_summary_ready or meeting_summary %}
+                    <a href="{% url 'projects:download-meeting-summary-pdf' project.object_id bot.object_id %}"
+                       id="btn-download-summary-pdf"
+                       class="btn btn-outline-secondary btn-sm"
+                       style="{% if not meeting_summary %}display:none;{% endif %}">
+                        <i class="bi bi-file-earmark-pdf"></i> PDF
+                    </a>
+                    <button type="button"
+                            id="btn-save-summary"
+                            class="btn btn-outline-success btn-sm"
+                            style="display:none;">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                    <button type="button"
+                            id="btn-generate-summary"
+                            class="btn btn-primary btn-sm">
+                        {% if meeting_summary %}Regenerate{% else %}Generate Summary{% endif %}
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if meeting_summary_error %}
+            <div class="alert alert-danger mb-0" id="summary-error">{{ meeting_summary_error }}</div>
+        {% endif %}
+
+        <!-- Loading skeleton -->
+        <div id="summary-loading" style="display:none;">
+            <div class="border rounded p-3 bg-light">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <span class="text-muted small">Generating summary...</span>
+                </div>
+                <div class="placeholder-glow">
+                    <span class="placeholder col-8 mb-2" style="display:block; height:14px;"></span>
+                    <span class="placeholder col-6 mb-2" style="display:block; height:14px;"></span>
+                    <span class="placeholder col-10 mb-2" style="display:block; height:14px;"></span>
+                    <span class="placeholder col-4 mb-2" style="display:block; height:14px;"></span>
+                    <span class="placeholder col-7 mb-2" style="display:block; height:14px;"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TipTap editor container -->
+        <div id="summary-editor-wrapper" style="{% if not meeting_summary %}display:none;{% endif %}">
+            <div id="summary-toolbar" class="btn-toolbar border rounded-top bg-light p-1 gap-1" role="toolbar" style="display:none;">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="bold" title="Bold"><i class="bi bi-type-bold"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="italic" title="Italic"><i class="bi bi-type-italic"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="strike" title="Strikethrough"><i class="bi bi-type-strikethrough"></i></button>
+                <div class="vr mx-1"></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="heading1" title="Heading 1">H1</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="heading2" title="Heading 2">H2</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="heading3" title="Heading 3">H3</button>
+                <div class="vr mx-1"></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="bulletList" title="Bullet List"><i class="bi bi-list-ul"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="orderedList" title="Ordered List"><i class="bi bi-list-ol"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="taskList" title="Task List"><i class="bi bi-list-check"></i></button>
+                <div class="vr mx-1"></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="blockquote" title="Blockquote"><i class="bi bi-blockquote-left"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="codeBlock" title="Code Block"><i class="bi bi-code-square"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="horizontalRule" title="Horizontal Rule"><i class="bi bi-dash-lg"></i></button>
+                <div class="vr mx-1"></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="undo" title="Undo"><i class="bi bi-arrow-counterclockwise"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="redo" title="Redo"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+            <div id="summary-editor" class="border rounded-bottom p-3" style="min-height:200px; outline:none;"></div>
+        </div>
+
+        {% if not meeting_summary and not meeting_summary_error %}
+            <div class="alert alert-info mb-0" id="summary-status-msg">{{ meeting_summary_status_message }}</div>
+        {% endif %}
+
+        <!-- Hidden textarea to hold markdown for saving -->
+        <textarea id="summary-markdown-store" style="display:none;">{{ meeting_summary }}</textarea>
+    </div>
+</div>
+
+<style>
+#summary-editor .ProseMirror {
+    outline: none;
+    min-height: 180px;
+}
+#summary-editor .ProseMirror h1 { font-size: 1.5rem; font-weight: 700; margin-top: 0.75rem; }
+#summary-editor .ProseMirror h2 { font-size: 1.25rem; font-weight: 600; margin-top: 0.75rem; }
+#summary-editor .ProseMirror h3 { font-size: 1.1rem; font-weight: 600; margin-top: 0.5rem; }
+#summary-editor .ProseMirror p { margin-bottom: 0.4rem; }
+#summary-editor .ProseMirror ul,
+#summary-editor .ProseMirror ol { padding-left: 1.5rem; }
+#summary-editor .ProseMirror ul[data-type="taskList"] {
+    list-style: none;
+    padding-left: 0;
+}
+#summary-editor .ProseMirror ul[data-type="taskList"] li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+}
+#summary-editor .ProseMirror ul[data-type="taskList"] li label {
+    margin-top: 0.15rem;
+}
+#summary-editor .ProseMirror blockquote {
+    border-left: 3px solid #dee2e6;
+    padding-left: 0.75rem;
+    margin-left: 0;
+    color: #6c757d;
+}
+#summary-editor .ProseMirror pre {
+    background: #f4f4f5;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    font-size: 0.85rem;
+}
+#summary-editor .ProseMirror table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.75rem 0;
+}
+#summary-editor .ProseMirror th,
+#summary-editor .ProseMirror td {
+    border: 1px solid #dee2e6;
+    padding: 0.5rem;
+    vertical-align: top;
+}
+#summary-editor .ProseMirror th {
+    background: #f8f9fa;
+    font-weight: 600;
+}
+#summary-editor .ProseMirror hr {
+    border: none;
+    border-top: 1px solid #dee2e6;
+    margin: 0.75rem 0;
+}
+#summary-toolbar .btn.is-active {
+    background-color: #0d6efd;
+    color: #fff;
+    border-color: #0d6efd;
+}
+</style>
+
+<!-- TipTap via CDN (ESM bundle) -->
+<script type="importmap">
+{
+    "imports": {
+        "@tiptap/core": "https://esm.sh/@tiptap/core@2.11.5",
+        "@tiptap/starter-kit": "https://esm.sh/@tiptap/starter-kit@2.11.5",
+        "@tiptap/extension-table": "https://esm.sh/@tiptap/extension-table@2.11.5",
+        "@tiptap/extension-table-row": "https://esm.sh/@tiptap/extension-table-row@2.11.5",
+        "@tiptap/extension-table-header": "https://esm.sh/@tiptap/extension-table-header@2.11.5",
+        "@tiptap/extension-table-cell": "https://esm.sh/@tiptap/extension-table-cell@2.11.5",
+        "@tiptap/extension-task-list": "https://esm.sh/@tiptap/extension-task-list@2.11.5",
+        "@tiptap/extension-task-item": "https://esm.sh/@tiptap/extension-task-item@2.11.5",
+        "@tiptap/extension-placeholder": "https://esm.sh/@tiptap/extension-placeholder@2.11.5",
+        "@tiptap/pm/markdown": "https://esm.sh/@tiptap/pm@2.11.5/markdown",
+        "marked": "https://esm.sh/marked@15.0.7",
+        "turndown": "https://esm.sh/turndown@7.2.0",
+        "turndown-plugin-gfm": "https://esm.sh/turndown-plugin-gfm@1.0.2"
+    }
+}
+</script>
+
+<script type="module">
+import { Editor } from '@tiptap/core';
+import StarterKit from '@tiptap/starter-kit';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableHeader from '@tiptap/extension-table-header';
+import TableCell from '@tiptap/extension-table-cell';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import Placeholder from '@tiptap/extension-placeholder';
+import { marked } from 'marked';
+import TurndownService from 'turndown';
+import { gfm } from 'turndown-plugin-gfm';
+
+const STREAM_URL = "{% url 'projects:stream-meeting-summary' project.object_id bot.object_id %}";
+const SAVE_URL = "{% url 'projects:save-meeting-summary' project.object_id bot.object_id %}";
+const CSRF_TOKEN = "{{ csrf_token }}";
+
+const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
+turndown.use(gfm);
+
+function markdownToHtml(md) {
+    return marked.parse(md || '', { async: false, gfm: true, breaks: true });
+}
+
+function htmlToMarkdown(html) {
+    return turndown.turndown(html || '');
+}
+
+const editorEl = document.getElementById('summary-editor');
+const toolbarEl = document.getElementById('summary-toolbar');
+const wrapperEl = document.getElementById('summary-editor-wrapper');
+const loadingEl = document.getElementById('summary-loading');
+const btnGenerate = document.getElementById('btn-generate-summary');
+const btnSave = document.getElementById('btn-save-summary');
+const btnDownloadPdf = document.getElementById('btn-download-summary-pdf');
+const downloadPdfUrl = btnDownloadPdf ? btnDownloadPdf.getAttribute('href') : null;
+const saveStatus = document.getElementById('summary-save-status');
+const statusMsg = document.getElementById('summary-status-msg');
+const errorEl = document.getElementById('summary-error');
+const markdownStore = document.getElementById('summary-markdown-store');
+
+const editor = new Editor({
+    element: editorEl,
+    extensions: [
+        StarterKit.configure({
+            heading: { levels: [1, 2, 3] },
+        }),
+        Table.configure({ resizable: false }),
+        TableRow,
+        TableHeader,
+        TableCell,
+        TaskList,
+        TaskItem.configure({ nested: true }),
+        Placeholder.configure({ placeholder: 'Your meeting summary will appear here...' }),
+    ],
+    editable: true,
+    content: markdownToHtml(markdownStore.value),
+    onUpdate: () => {
+        if (btnSave) btnSave.style.display = '';
+    },
+});
+
+// Show toolbar and save button if we already have content
+if (markdownStore.value.trim()) {
+    toolbarEl.style.display = '';
+    btnSave.style.display = 'none';
+    if (btnDownloadPdf) btnDownloadPdf.style.display = '';
+}
+
+// Wire up toolbar buttons
+toolbarEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const chain = editor.chain().focus();
+    const actions = {
+        bold: () => chain.toggleBold().run(),
+        italic: () => chain.toggleItalic().run(),
+        strike: () => chain.toggleStrike().run(),
+        heading1: () => chain.toggleHeading({ level: 1 }).run(),
+        heading2: () => chain.toggleHeading({ level: 2 }).run(),
+        heading3: () => chain.toggleHeading({ level: 3 }).run(),
+        bulletList: () => chain.toggleBulletList().run(),
+        orderedList: () => chain.toggleOrderedList().run(),
+        taskList: () => chain.toggleTaskList().run(),
+        blockquote: () => chain.toggleBlockquote().run(),
+        codeBlock: () => chain.toggleCodeBlock().run(),
+        horizontalRule: () => chain.setHorizontalRule().run(),
+        undo: () => chain.undo().run(),
+        redo: () => chain.redo().run(),
+    };
+    if (actions[action]) actions[action]();
+    updateToolbarState();
+});
+
+function updateToolbarState() {
+    toolbarEl.querySelectorAll('[data-action]').forEach(btn => {
+        const action = btn.dataset.action;
+        let isActive = false;
+        if (action === 'bold') isActive = editor.isActive('bold');
+        else if (action === 'italic') isActive = editor.isActive('italic');
+        else if (action === 'strike') isActive = editor.isActive('strike');
+        else if (action === 'heading1') isActive = editor.isActive('heading', { level: 1 });
+        else if (action === 'heading2') isActive = editor.isActive('heading', { level: 2 });
+        else if (action === 'heading3') isActive = editor.isActive('heading', { level: 3 });
+        else if (action === 'bulletList') isActive = editor.isActive('bulletList');
+        else if (action === 'orderedList') isActive = editor.isActive('orderedList');
+        else if (action === 'taskList') isActive = editor.isActive('taskList');
+        else if (action === 'blockquote') isActive = editor.isActive('blockquote');
+        else if (action === 'codeBlock') isActive = editor.isActive('codeBlock');
+        btn.classList.toggle('is-active', isActive);
+    });
+}
+
+editor.on('selectionUpdate', updateToolbarState);
+editor.on('transaction', updateToolbarState);
+
+// Wire up button click handlers
+if (btnGenerate) btnGenerate.addEventListener('click', () => generateSummaryStream());
+if (btnSave) btnSave.addEventListener('click', () => saveSummary());
+if (btnDownloadPdf) {
+    btnDownloadPdf.addEventListener('click', async (event) => {
+        event.preventDefault();
+
+        const saved = await saveSummary({ preserveButton: true, silentIfUnchanged: true });
+        if (saved && downloadPdfUrl) {
+            window.location.href = downloadPdfUrl;
+        }
+    });
+}
+
+// Streaming generation
+async function generateSummaryStream() {
+    if (errorEl) errorEl.style.display = 'none';
+    if (statusMsg) statusMsg.style.display = 'none';
+    loadingEl.style.display = '';
+    wrapperEl.style.display = 'none';
+    toolbarEl.style.display = 'none';
+    btnGenerate.disabled = true;
+    btnGenerate.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Generating...';
+    btnSave.style.display = 'none';
+    if (btnDownloadPdf) btnDownloadPdf.style.display = 'none';
+
+    editor.commands.setContent('');
+    let accumulated = '';
+
+    try {
+        const resp = await fetch(STREAM_URL, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!resp.ok) {
+            const errData = await resp.json().catch(() => null);
+            throw new Error(errData?.error || `Request failed (${resp.status})`);
+        }
+
+        loadingEl.style.display = 'none';
+        wrapperEl.style.display = '';
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                const dataStr = line.slice(6).trim();
+                if (dataStr === '[DONE]') continue;
+
+                try {
+                    const parsed = JSON.parse(dataStr);
+                    if (parsed.error) throw new Error(parsed.error);
+                    if (parsed.delta) {
+                        accumulated += parsed.delta;
+                        const html = markdownToHtml(accumulated);
+                        editor.commands.setContent(html);
+                    }
+                } catch (e) {
+                    if (e.message && !e.message.startsWith('Unexpected')) throw e;
+                }
+            }
+        }
+
+        // Update markdown store
+        markdownStore.value = accumulated;
+        toolbarEl.style.display = '';
+        btnSave.style.display = 'none';
+        if (btnDownloadPdf && accumulated.trim()) btnDownloadPdf.style.display = '';
+
+    } catch (err) {
+        loadingEl.style.display = 'none';
+        wrapperEl.style.display = '';
+        if (errorEl) {
+            errorEl.textContent = err.message || 'Failed to generate summary.';
+            errorEl.style.display = '';
+        } else {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-danger mb-0 mt-2';
+            alertDiv.id = 'summary-error';
+            alertDiv.textContent = err.message || 'Failed to generate summary.';
+            wrapperEl.parentNode.insertBefore(alertDiv, wrapperEl);
+        }
+    } finally {
+        btnGenerate.disabled = false;
+        btnGenerate.innerHTML = 'Regenerate';
+    }
+};
+
+// Save summary
+async function saveSummary(options = {}) {
+    const { preserveButton = false, silentIfUnchanged = false } = options;
+    const html = editor.getHTML();
+    const md = htmlToMarkdown(html);
+    const hasChanges = md.trim() !== (markdownStore.value || '').trim();
+
+    if (!hasChanges) {
+        if (!silentIfUnchanged) {
+            saveStatus.textContent = 'Saved';
+            saveStatus.className = 'text-success small';
+            saveStatus.style.display = '';
+            setTimeout(() => { saveStatus.style.display = 'none'; }, 3000);
+        }
+        return true;
+    }
+
+    btnSave.disabled = true;
+    btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving...';
+    if (btnDownloadPdf) btnDownloadPdf.classList.add('disabled');
+    saveStatus.style.display = 'none';
+
+    try {
+        const resp = await fetch(SAVE_URL, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ markdown: md }),
+        });
+
+        if (!resp.ok) {
+            const errData = await resp.json().catch(() => null);
+            throw new Error(errData?.error || 'Failed to save');
+        }
+
+        markdownStore.value = md;
+        saveStatus.textContent = 'Saved';
+        saveStatus.className = 'text-success small';
+        saveStatus.style.display = '';
+        btnSave.style.display = preserveButton ? '' : 'none';
+        if (btnDownloadPdf) btnDownloadPdf.style.display = '';
+        setTimeout(() => { saveStatus.style.display = 'none'; }, 3000);
+        return true;
+
+    } catch (err) {
+        saveStatus.textContent = err.message || 'Save failed';
+        saveStatus.className = 'text-danger small';
+        saveStatus.style.display = '';
+        return false;
+    } finally {
+        btnSave.disabled = false;
+        btnSave.innerHTML = '<i class="bi bi-check-lg"></i> Save';
+        if (btnDownloadPdf) btnDownloadPdf.classList.remove('disabled');
+    }
+}
+</script>

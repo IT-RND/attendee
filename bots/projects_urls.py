@@ -47,6 +47,26 @@ urlpatterns = [
         name="project-bot-recordings",
     ),
     path(
+        "<str:object_id>/bots/<str:bot_object_id>/summary",
+        projects_views.GenerateMeetingSummaryView.as_view(),
+        name="generate-meeting-summary",
+    ),
+    path(
+        "<str:object_id>/bots/<str:bot_object_id>/summary/stream",
+        projects_views.StreamMeetingSummaryView.as_view(),
+        name="stream-meeting-summary",
+    ),
+    path(
+        "<str:object_id>/bots/<str:bot_object_id>/summary/save",
+        projects_views.SaveMeetingSummaryView.as_view(),
+        name="save-meeting-summary",
+    ),
+    path(
+        "<str:object_id>/bots/<str:bot_object_id>/summary/pdf",
+        projects_views.DownloadMeetingSummaryPdfView.as_view(),
+        name="download-meeting-summary-pdf",
+    ),
+    path(
         "<str:object_id>/credentials",
         projects_views.ProjectCredentialsView.as_view(),
         name="project-credentials",

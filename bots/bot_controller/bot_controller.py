@@ -51,6 +51,7 @@ from bots.models import (
     Recording,
     RecordingFormats,
     RecordingManager,
+    RecordingStates,
     RecordingTypes,
     TranscriptionProviders,
     Utterance,
@@ -470,6 +471,10 @@ class BotController:
         recording.file = s3_storage_key
         recording.first_buffer_timestamp_ms = self.get_first_buffer_timestamp_ms()
         recording.save()
+
+        if recording.state == RecordingStates.FAILED:
+            logger.info(f"Recording {recording.id} was marked as failed before file upload completed. Correcting state to complete.")
+            RecordingManager.set_recording_complete_from_failed(recording)
 
     def get_recording_transcription_provider(self):
         recording = Recording.objects.get(bot=self.bot_in_db, is_default_recording=True)
