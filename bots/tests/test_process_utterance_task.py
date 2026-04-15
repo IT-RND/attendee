@@ -1027,7 +1027,7 @@ class OpenAIProviderTest(TransactionTestCase):
     @mock.patch("bots.tasks.process_utterance_task.requests.post")
     @mock.patch("bots.tasks.process_utterance_task.pcm_to_mp3", return_value=b"mp3")
     def test_diarized_json_transformation(self, mock_pcm, mock_post):
-        """Test that diarized_json format is transformed to Attendee's expected transcription schema"""
+        """Test that diarized_json format is transformed to Boga (Meeting) Assistant's expected transcription schema"""
         # Mock diarized_json response with segments
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {

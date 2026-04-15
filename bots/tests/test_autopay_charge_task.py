@@ -67,7 +67,7 @@ class AutopayChargeTaskTestCase(TestCase):
             payment_method="pm_test123",
             off_session=True,
             confirm=True,
-            description="Autopay charge for 100 Attendee credits",
+            description="Autopay charge for 100 Boga credits",
             metadata={"organization_id": str(self.org.id), "credit_amount": "100", "autopay": "true"},
             api_key="sk_test_key",
         )

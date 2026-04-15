@@ -1,9 +1,9 @@
-# Getting your Attendee-powered Zoom App Approved
+# Getting your Boga (Meeting) Assistant-powered Zoom App Approved
 *by Frazer Kearl ([MeetDoris](https://meetdoris.com/))*
 
 ## Basic Information
 
-For **Attendee** to function as an anonymous attendee:  
+For **Boga (Meeting) Assistant** to function as an anonymous attendee:  
 - No Zoom user information is required.  
 - No OAuth scopes are required.  
 - You can set the redirect URL to your app’s home page (e.g. `/home`, `/dashboard`).  
@@ -34,7 +34,7 @@ This makes the application process less stringent than it would otherwise be.
 
 ## App Listing
 
-- Your app **does not need to be listed** for Attendee to record external Zoom meetings.  
+- Your app **does not need to be listed** for Boga (Meeting) Assistant to record external Zoom meetings.  
 - Your Zoom app just needs to be **approved**.  
 - You still need to fill this section out, along with images.  
 
@@ -45,7 +45,7 @@ Once the app is approved:
 ## Technical Design
 
 ### Technology Stack (High-Level Only)
-> The form says “describe in detail,” but for basic Attendee you can keep it high-level. You **do not** need to list every library—only the major components.
+> The form says “describe in detail,” but for basic Boga (Meeting) Assistant you can keep it high-level. You **do not** need to list every library—only the major components.
 
 **Example (edit to match your setup):**
 - **Frontend:** React 18.3+, Material UI  
@@ -55,7 +55,7 @@ Once the app is approved:
 - **Hosting:** Azure App Service (backend), Azure Static Web Apps (frontend)  
 - **CI/CD & Security:** GitHub Actions, CodeQL SAST  
 - **Observability:** Azure Application Insights, centralized logging  
-- **Zoom Integration:** Zoom **Meeting SDK (Web)** only; no Zoom REST APIs are used in the Attendee flow
+- **Zoom Integration:** Zoom **Meeting SDK (Web)** only; no Zoom REST APIs are used in the Boga (Meeting) Assistant flow
 
 ### Architecture Diagram
 What we submitted:
@@ -72,7 +72,7 @@ What we submitted:
 
 - **Does your app periodically undergo 3rd party app testing?**  
   - Select whichever applies.  
-  - Not needed for basic Attendee implementation.
+  - Not needed for basic Boga (Meeting) Assistant implementation.
 
 ### Additional Documents
 - Submit whatever you have — the more, the better.  
@@ -87,7 +87,7 @@ What we submitted:
   - Select **Yes** (and make sure it does).
 
 - **Is the integration utilising verification tokens or secret tokens and `z-zm-signature` header?**  
-  - No, we’re not using Zoom webhooks with basic Attendee implementation.
+  - No, we’re not using Zoom webhooks with basic Boga (Meeting) Assistant implementation.
 
 - **Does your app collect, store, log, or retain Zoom user data?**  
   - No — hence no OAuth scopes.
@@ -132,4 +132,4 @@ Steps:
 - Ensure privileged UI (like admin controls) has proper **server-side** validation.
 
 If no issues: ✅ You passed.  
-Your app is approved and the Attendee Bot can join any external Zoom meeting.
+Your app is approved and the Boga (Meeting) Assistant Bot can join any external Zoom meeting.

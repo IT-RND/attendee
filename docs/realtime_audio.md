@@ -1,6 +1,6 @@
 # Realtime Audio Input and Output
 
-Attendee supports bidirectional realtime audio streaming through websockets. You can receive mixed or per-participant audio from meetings and have your bot output audio into meetings in real-time.
+Boga (Meeting) Assistant supports bidirectional realtime audio streaming through websockets. You can receive mixed or per-participant audio from meetings and have your bot output audio into meetings in real-time.
 
 ## Setup
 
@@ -19,11 +19,11 @@ To enable realtime audio streaming, configure the `websocket_settings.audio` par
 }
 ```
 
-The `sample_rate` can be `8000`, `16000`, or `24000` and defaults to `16000`. It determines the sample rate of the audio chunks you receive from Attendee.
+The `sample_rate` can be `8000`, `16000`, or `24000` and defaults to `16000`. It determines the sample rate of the audio chunks you receive from Boga (Meeting) Assistant.
 
 ## Websocket Message Format
 
-### Outgoing Audio (Attendee → Your Websocket Server)
+### Outgoing Audio (Boga (Meeting) Assistant → Your Websocket Server)
 
 Your WebSocket server will receive messages in this format.
 
@@ -41,7 +41,7 @@ Your WebSocket server will receive messages in this format.
 
 The `chunk` field is base64-encoded 16-bit single channel PCM audio data at the frequency specified in the `sample_rate` field.
 
-### Incoming Audio (Your Websocket Server → Attendee)
+### Incoming Audio (Your Websocket Server → Boga (Meeting) Assistant)
 
 When you want the bot to speak audio in the meeting, send a message in this format.
 
@@ -107,7 +107,7 @@ The websocket message payload is identical to the mixed audio payload, except th
 
 ## Retries on Websocket Connections
 
-Attendee will automatically retry to connect to your websocket server if the connection is lost or the initial connection attempt fails. We will retry up to 30 times with a 2 second delay between retries.
+Boga (Meeting) Assistant will automatically retry to connect to your websocket server if the connection is lost or the initial connection attempt fails. We will retry up to 30 times with a 2 second delay between retries.
 
 ## Error Messages
 

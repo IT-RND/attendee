@@ -75,8 +75,8 @@
   ],
   "siteConfig": {
     "logo": {
-      "darkMode": "https://app.attendee.dev/static/images/logo_with_text.svg",
-      "lightMode": "https://app.attendee.dev/static/images/logo_with_text.svg"
+      "darkMode": "https://app.attendee.dev/static/images/logo_with_text.png",
+      "lightMode": "https://app.attendee.dev/static/images/logo_with_text.png"
     },
     "footer": ""
   },

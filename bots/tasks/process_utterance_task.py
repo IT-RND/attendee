@@ -17,7 +17,7 @@ from bots.webhook_utils import trigger_webhook
 
 def transform_diarized_json_to_schema(result):
     """
-    Transform OpenAI diarized_json format to Attendee's expected transcription schema.
+    Transform OpenAI diarized_json format to Boga (Meeting) Assistant's expected transcription schema.
     """
     transcription = {"transcript": result.get("text", "")}
 
@@ -355,7 +355,7 @@ def get_transcription_via_openai(utterance):
     result = response.json()
     logger.info(f"OpenAI transcription completed successfully for utterance {utterance.id}.")
 
-    # If diarized_json format, transform to Attendee's expected transcription schema
+    # If diarized_json format, transform to Boga (Meeting) Assistant's expected transcription schema
     if response_format == "diarized_json":
         transcription = transform_diarized_json_to_schema(result)
     else:

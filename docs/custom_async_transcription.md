@@ -6,13 +6,13 @@ Unlike other providers, this does not require credentials in the dashboard. Inst
 
 #### How it works
 
-1. Attendee sends audio segments as raw PCM audio via HTTP POST to your configured endpoint
+1. Boga (Meeting) Assistant sends audio segments as raw PCM audio via HTTP POST to your configured endpoint
 2. Your service processes the audio and returns the transcription asynchronously
 3. The response must follow the expected format (see below)
 
 #### Configuration
 
-Set these environment variables on your Attendee server:
+Set these environment variables on your Boga (Meeting) Assistant server:
 
 - `CUSTOM_ASYNC_TRANSCRIPTION_URL` **(required)**: The full URL of your transcription endpoint (e.g., `https://192.168.0.1/transcribe`)
 - `CUSTOM_ASYNC_TRANSCRIPTION_TIMEOUT` (optional): Request timeout in seconds (default: 120)
@@ -32,7 +32,7 @@ Your transcription service must accept a `POST` request with `multipart/form-dat
 - Sample rate: Depends on the meeting source (typically 16000 Hz or 32000 Hz)
 - Channels: 1 (mono)
 
-**Example request from Attendee to your service:**
+**Example request from Boga (Meeting) Assistant to your service:**
 
 ```bash
 curl -X POST 'http://your-service.com/transcribe' \
@@ -125,7 +125,7 @@ All properties inside `custom_async` will be sent as form data to your service a
 
 #### Notes
 
-- No credentials are needed in the Attendee dashboard
+- No credentials are needed in the Boga (Meeting) Assistant dashboard
 - Your service must respond asynchronously within the timeout period
 - Audio is sent as raw PCM format (16-bit linear PCM, mono)
 - The sample rate varies based on the meeting source (typically 16000 Hz or 32000 Hz)

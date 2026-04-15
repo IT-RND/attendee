@@ -11,7 +11,7 @@ from .models import CreditTransaction, CreditTransactionManager
 logger = logging.getLogger(__name__)
 
 
-# Compute how many Attendee credits you get for a given purchase amount in dollars
+# Compute how many Boga credits you get for a given purchase amount in dollars
 def credit_amount_for_purchase_amount_dollars(purchase_amount_dollars):
     # Calculate credits based on tiered pricing
     if purchase_amount_dollars <= 200:

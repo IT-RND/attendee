@@ -221,7 +221,7 @@ REST_FRAMEWORK = {
 
 DISABLE_RATE_LIMITING = os.getenv("DISABLE_RATE_LIMITING", "false") == "true"
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Attendee API",
+    "TITLE": "Boga (Meeting) Assistant API",
     "DESCRIPTION": "Meetings bots made easy",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,

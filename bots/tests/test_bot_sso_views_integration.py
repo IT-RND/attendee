@@ -33,7 +33,7 @@ def _generate_rsa_key_and_self_signed_cert():
     subject = issuer = x509.Name(
         [
             x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Attendee Test"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Boga (Meeting) Assistant Test"),
             x509.NameAttribute(NameOID.COMMON_NAME, "attendee-test.local"),
         ]
     )

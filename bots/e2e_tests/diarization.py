@@ -17,7 +17,7 @@ import requests
 # python diarization.py --api-key xx --base-url https://staging.attendee.dev --speaker1 /home/nduncan/Downloads/speech_datasets/two_people_talking_ten_min/speaker_1_trimmed.mp3 --speaker2 /home/nduncan/Downloads/speech_datasets/two_people_talking_ten_min/speaker_2_trimmed.mp3 --meeting-url xxx --speak-wait 10 --leave-after 310 --verbose
 
 
-class AttendeeClient:
+class BogaClient:
     def __init__(self, base_url: str, api_key: str, timeout=30):
         self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
@@ -122,7 +122,7 @@ def state_is_joined_recording(state: str) -> bool:
     return "joined" in s and "record" in s
 
 
-def wait_for_state(client: AttendeeClient, bot_id: str, predicate, desc: str, timeout_s: int, poll_s: float = 2.0) -> Dict:
+def wait_for_state(client: BogaClient, bot_id: str, predicate, desc: str, timeout_s: int, poll_s: float = 2.0) -> Dict:
     start = time.time()
     while True:
         bot = client.get_bot(bot_id)
@@ -135,9 +135,9 @@ def wait_for_state(client: AttendeeClient, bot_id: str, predicate, desc: str, ti
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Spin up three Attendee bots in a Teams meeting: two speaker bots to play audio and one recorder bot to transcribe.")
-    parser.add_argument("--api-key", required=True, help="Attendee API key")
-    parser.add_argument("--base-url", required=True, help="Attendee base URL, e.g. https://staging.attendee.dev")
+    parser = argparse.ArgumentParser(description="Spin up three Boga (Meeting) Assistant bots in a Teams meeting: two speaker bots to play audio and one recorder bot to transcribe.")
+    parser.add_argument("--api-key", required=True, help="Boga (Meeting) Assistant API key")
+    parser.add_argument("--base-url", required=True, help="Boga (Meeting) Assistant base URL, e.g. https://staging.attendee.dev")
     parser.add_argument("--speaker1", required=True, help="Path to first speaker audio (mp3/wav)")
     parser.add_argument("--speaker2", required=True, help="Path to second speaker audio (mp3/wav)")
     parser.add_argument("--meeting-url", default=None, help="Meeting URL (must bypass waiting room).")
@@ -153,7 +153,7 @@ def main():
         print("ERROR: Meeting URL is required", file=sys.stderr)
         sys.exit(2)
 
-    client = AttendeeClient(args.base_url, args.api_key)
+    client = BogaClient(args.base_url, args.api_key)
 
     bot1_name = "Speaker 1"
     bot2_name = "Speaker 2"

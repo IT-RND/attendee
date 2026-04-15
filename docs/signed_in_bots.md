@@ -13,7 +13,7 @@ The downsides of signed in bots are that it may take slightly longer to join the
 
 We support signed-in bots for Zoom. Instead of passing a username and password to the bot, you'll pass a ZAK (Zoom Access Key) token, which allows the bot to start or join a meeting on a user's behalf.
 
-To provide the ZAK token to your bot, you must provide a callback URL in the bot creation request. When the bot needs to join a meeting, Attendee will call this URL to request a fresh ZAK token. This callback approach is required because ZAK tokens have a 5-minute lifespan, making it impossible to pass a token directly when creating scheduled bots (as the token would expire before the bot actually joins). 
+To provide the ZAK token to your bot, you must provide a callback URL in the bot creation request. When the bot needs to join a meeting, Boga (Meeting) Assistant will call this URL to request a fresh ZAK token. This callback approach is required because ZAK tokens have a 5-minute lifespan, making it impossible to pass a token directly when creating scheduled bots (as the token would expire before the bot actually joins). 
 
 To provide the callback URL, include the following in your bot creation request:
 
@@ -23,7 +23,7 @@ To provide the callback URL, include the following in your bot creation request:
 }
 ```
 
-Attendee will make a POST request to the callback URL with this data in the body:
+Boga (Meeting) Assistant will make a POST request to the callback URL with this data in the body:
 
 ```json
 {
@@ -54,7 +54,7 @@ We support signed-in bots for Microsoft Teams. Here's how to set it up:
 
 ## Signed in Google Meet Bots
 
-We support signed-in bots for Google Meet. You'll need to create a new Google Workspace account for the bot to use. You'll then configure the workspace so that the Attendee server is a SAML SSO Identity Provider (IdP) that the bot can use to sign in. This is more reliable than signing in with a username and password.
+We support signed-in bots for Google Meet. You'll need to create a new Google Workspace account for the bot to use. You'll then configure the workspace so that the Boga (Meeting) Assistant server is a SAML SSO Identity Provider (IdP) that the bot can use to sign in. This is more reliable than signing in with a username and password.
 
 Here are the steps to set it up:
 
@@ -80,8 +80,8 @@ Here are the steps to set it up:
 11. Under the Manage SSO profile assignments section, click the "Manage" button.
 12. Select the Legacy SSO profile you created in the previous step and click the "Save" button.
 
-#### Create a new Google Meet bot login for your Attendee project
-1. Navigate to the Settings -> Credentials page in the Attendee dashboard.
+#### Create a new Google Meet bot login for your Boga (Meeting) Assistant project
+1. Navigate to the Settings -> Credentials page in the Boga (Meeting) Assistant dashboard.
 2. Scroll down to the Google Meet Bot Logins section and click the "Add Login" button.
 3. Enter the requested information. For private key and certificate, you can upload the key.pem and cert.pem files you generated previously. The email must match the email of the bot user in your Google Workspace account. The certificate must match the certificate you added when creating the Legacy SSO profile.
 

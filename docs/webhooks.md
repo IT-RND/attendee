@@ -1,10 +1,10 @@
 # Webhooks
 
-Webhooks send your server real-time updates when something important happens in Attendee, so that you don't need to poll the API.
+Webhooks send your server real-time updates when something important happens in Boga (Meeting) Assistant, so that you don't need to poll the API.
 
 They can alert your server when a bot joins a meeting, starts recording, when a recording is available, when a chat message is sent, when the transcript is updated, when participants join or leave meetings, or when calendar events are updated.
 
-Attendee supports two types of webhooks:
+Boga (Meeting) Assistant supports two types of webhooks:
 - **Project-level webhooks**: Apply to all bots in a project (created via UI)
 - **Bot-level webhooks**: Apply to specific bots only (created via API)
 
@@ -64,7 +64,7 @@ When a bot has both project-level and bot-level webhooks configured, the bot-lev
 
 ## Webhook Payload
 
-When a webhook is delivered, Attendee will send an HTTP POST request to your webhook URL with the following structure:
+When a webhook is delivered, Boga (Meeting) Assistant will send an HTTP POST request to your webhook URL with the following structure:
 
 ### For Bot-Related Events
 
@@ -188,7 +188,7 @@ For webhooks triggered by `calendar.events_update`, the `data` field contains ca
 }
 ```
 
-This webhook is triggered after each successful calendar sync operation, which occurs automatically to keep your calendar events up to date with the remote calendar (Google Calendar or Microsoft Calendar). After receiving this webhook, you can fetch the calendar events from the Attendee API to get the latest events.
+This webhook is triggered after each successful calendar sync operation, which occurs automatically to keep your calendar events up to date with the remote calendar (Google Calendar or Microsoft Calendar). After receiving this webhook, you can fetch the calendar events from the Boga (Meeting) Assistant API to get the latest events.
 
 ### Payload for `calendar.state_change` trigger
 
@@ -235,14 +235,14 @@ Go to the 'Bots' page and navigate to a Bot which was created after you created 
 
 ## Verifying Webhooks
 
-To ensure the webhook requests are coming from Attendee, we sign each request with a secret. You can verify this signature to confirm the authenticity of the request.
+To ensure the webhook requests are coming from Boga (Meeting) Assistant, we sign each request with a secret. You can verify this signature to confirm the authenticity of the request.
 
 - Each project has a single webhook secret used for both project and bot-level webhooks. You can get the secret in the Settings → Webhooks page.
 - The signature is included in the `X-Webhook-Signature` header of each webhook request
 
 ## Webhook Retry Policy
 
-If your endpoint returns a non-2xx status code or fails to respond within 10 seconds, Attendee will retry the webhook delivery up to 3 times with exponential backoff.
+If your endpoint returns a non-2xx status code or fails to respond within 10 seconds, Boga (Meeting) Assistant will retry the webhook delivery up to 3 times with exponential backoff.
 
 ## Code examples for processing webhooks
 

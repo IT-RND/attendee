@@ -45,7 +45,7 @@ ADMINS = []
 if os.getenv("ERROR_REPORTS_RECEIVER_EMAIL_ADDRESS"):
     ADMINS.append(
         (
-            "Attendee Error Reports Email Receiver",
+            "Boga (Meeting) Assistant Error Reports Email Receiver",
             os.getenv("ERROR_REPORTS_RECEIVER_EMAIL_ADDRESS"),
         )
     )

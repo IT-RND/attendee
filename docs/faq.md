@@ -2,7 +2,7 @@
 
 ## How do I get the Zoom client id and secret?
 
-The Zoom app is provided by you, the developer, not by Attendee. When you input the Zoom client ID and secret, you’re specifying the Zoom app that your bot will use to join meetings. See [here](https://github.com/attendee-labs/attendee?tab=readme-ov-file#obtaining-zoom-oauth-credentials) for instructions on how to obtain the client ID and secret.
+The Zoom app is provided by you, the developer, not by Boga (Meeting) Assistant. When you input the Zoom client ID and secret, you’re specifying the Zoom app that your bot will use to join meetings. See [here](https://github.com/attendee-labs/attendee?tab=readme-ov-file#obtaining-zoom-oauth-credentials) for instructions on how to obtain the client ID and secret.
 
 ## Why can't my Zoom bot join external meetings?
 
@@ -14,7 +14,7 @@ Two of our community members have created guides on getting your bot approved. S
 
 The user likely needs to enable external participant recording privileges in their Zoom account. See [here](https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0063640) for more information.
 
-## Why is the bot having issues joining a Zoom meeting when running Attendee locally? 
+## Why is the bot having issues joining a Zoom meeting when running Boga (Meeting) Assistant locally? 
 
 You may need to rebuild the docker image. You can do this in one of two ways: 
 

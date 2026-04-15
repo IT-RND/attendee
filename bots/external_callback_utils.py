@@ -75,7 +75,7 @@ def make_callback_request(url: str, bot, callback_type: str, additional_data: Op
             json=callback_data,
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "Attendee-Callback/1.0",
+                "User-Agent": "Boga-Callback/1.0",
                 "X-Webhook-Signature": signature,
             },
             timeout=30,  # 30-second timeout

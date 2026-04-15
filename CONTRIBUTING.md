@@ -1,6 +1,6 @@
-# Contributing to Attendee
+# Contributing to Boga (Meeting) Assistant
 
-Thank you for your interest in contributing to Attendee! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to Boga (Meeting) Assistant! This document provides guidelines and instructions for contributing to the project.
 
 ## Getting Started
 
@@ -76,4 +76,4 @@ When reporting issues, please include:
 
 ## License
 
-By contributing to Attendee, you agree that your contributions will be licensed under the same license as the project.
+By contributing to Boga (Meeting) Assistant, you agree that your contributions will be licensed under the same license as the project.

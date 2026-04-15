@@ -188,7 +188,7 @@
       try {
         // Create and add audio element to the page
         const microphoneAudio = document.createElement('audio');
-        microphoneAudio.id = 'microphoneAudioInjectedByAttendeeWebsiteStreamer';
+        microphoneAudio.id = 'microphoneAudioInjectedByBogaWebsiteStreamer';
         microphoneAudio.autoplay = true;
         microphoneAudio.muted = true;
         document.body.appendChild(microphoneAudio);

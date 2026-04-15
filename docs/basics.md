@@ -1,7 +1,7 @@
 # Basics of Bots
 
 ## What is a bot?
-In the Attendee platform, a bot is an automated participant that can join virtual meetings across Zoom, Google Meet, and Microsoft Teams to perform various tasks such as recording and transcription.
+In the Boga (Meeting) Assistant platform, a bot is an automated participant that can join virtual meetings across Zoom, Google Meet, and Microsoft Teams to perform various tasks such as recording and transcription.
 
 ## Bot Capabilities
 

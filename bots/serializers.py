@@ -267,7 +267,7 @@ TRANSCRIPTION_SETTINGS_SCHEMA = {
         "deepgram": {
             "type": "object",
             "properties": {
-                "callback": {"description": "The URL to send the transcriptions to. If used, the transcriptions will be sent directly from Deepgram to your server so you will not be able to access them via the Attendee API. See here for details: https://developers.deepgram.com/docs/callback", "type": "string"},
+                "callback": {"description": "The URL to send the transcriptions to. If used, the transcriptions will be sent directly from Deepgram to your server so you will not be able to access them via the Boga (Meeting) Assistant API. See here for details: https://developers.deepgram.com/docs/callback", "type": "string"},
                 "detect_language": {"description": "Whether to automatically detect the spoken language. Can only detect a single language for the entire audio. This is only supported for an older model and is not recommended. Please use language='multi' instead.", "type": "boolean"},
                 "keyterms": {"description": "Improve recall of key terms or phrases in the transcript. This feature is only available for the nova-3 model in english, so you must set the language to 'en'. See here for details: https://developers.deepgram.com/docs/keyterm", "items": {"type": "string"}, "type": "array"},
                 "keywords": {"description": "Improve recall of key terms or phrases in the transcript. This feature is only available for the nova-2 model. See here for details: https://developers.deepgram.com/docs/keywords", "items": {"type": "string"}, "type": "array"},
@@ -424,7 +424,7 @@ TRANSCRIPTION_SETTINGS_SCHEMA = {
         },
         "custom_async": {
             "type": "object",
-            "description": "Custom self-hosted transcription service with async processing. Additional properties will be sent as form data in the request. Only supported if self-hosting Attendee.",
+            "description": "Custom self-hosted transcription service with async processing. Additional properties will be sent as form data in the request. Only supported if self-hosting Boga (Meeting) Assistant.",
             "required": [],
             "additionalProperties": True,
         },
@@ -1170,7 +1170,7 @@ class CreateBotSerializer(BotValidationMixin, serializers.Serializer):
     )
 
     external_media_storage_settings = ExternalMediaStorageSettingsJSONField(
-        help_text="Settings that allow Attendee to upload the recording to an external storage bucket controlled by you. This relieves you from needing to download the recording from Attendee and then upload it to your own storage. To use this feature you must add credentials to your project that provide access to the external storage.",
+        help_text="Settings that allow Boga (Meeting) Assistant to upload the recording to an external storage bucket controlled by you. This relieves you from needing to download the recording from Boga (Meeting) Assistant and then upload it to your own storage. To use this feature you must add credentials to your project that provide access to the external storage.",
         required=False,
         default=None,
     )
@@ -1592,7 +1592,7 @@ class CreateBotSerializer(BotValidationMixin, serializers.Serializer):
         return value
 
     kubernetes_settings = KubernetesSettingsJSONField(
-        help_text="Kubernetes-specific settings for the bot pod, e.g. {'bot_pod_spec_type': 'HIGH_MEMORY'}. Only available when self-hosting Attendee.",
+        help_text="Kubernetes-specific settings for the bot pod, e.g. {'bot_pod_spec_type': 'HIGH_MEMORY'}. Only available when self-hosting Boga (Meeting) Assistant.",
         required=False,
         default=None,
     )

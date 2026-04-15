@@ -14,7 +14,7 @@ import requests
 # ----------------------------
 
 
-class AttendeeClient:
+class BogaClient:
     def __init__(self, base_url: str, api_key: str, timeout=30):
         self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
@@ -87,7 +87,7 @@ def state_is_joined_recording(state: str) -> bool:
     return "joined" in s and "record" in s
 
 
-def wait_for_state(client: AttendeeClient, bot_id: str, predicate, desc: str, timeout_s: int, poll_s: float = 2.0) -> Dict:
+def wait_for_state(client: BogaClient, bot_id: str, predicate, desc: str, timeout_s: int, poll_s: float = 2.0) -> Dict:
     start = time.time()
     while True:
         bot = client.get_bot(bot_id)
@@ -99,7 +99,7 @@ def wait_for_state(client: AttendeeClient, bot_id: str, predicate, desc: str, ti
         time.sleep(poll_s)
 
 
-def play_videos_for_bot(client: AttendeeClient, bot_id: str, bot_name: str, video_urls_with_durations: List[Tuple[str, float]], end_time: float, verbose: bool) -> None:
+def play_videos_for_bot(client: BogaClient, bot_id: str, bot_name: str, video_urls_with_durations: List[Tuple[str, float]], end_time: float, verbose: bool) -> None:
     """
     Continuously plays random videos for a bot until end_time is reached.
     Each video plays for its duration + 15 seconds buffer before playing the next.
@@ -136,8 +136,8 @@ def play_videos_for_bot(client: AttendeeClient, bot_id: str, bot_name: str, vide
 
 def main():
     parser = argparse.ArgumentParser(description="Stress test: send multiple bots to a meeting to continuously play videos.")
-    parser.add_argument("--api-key", required=True, help="Attendee API key")
-    parser.add_argument("--base-url", required=True, help="Attendee base URL, e.g. https://staging.attendee.dev")
+    parser.add_argument("--api-key", required=True, help="Boga (Meeting) Assistant API key")
+    parser.add_argument("--base-url", required=True, help="Boga (Meeting) Assistant base URL, e.g. https://staging.attendee.dev")
     parser.add_argument("--meeting-url", required=True, help="Meeting URL (must bypass waiting room)")
     parser.add_argument("--num-bots", type=int, default=16, help="Number of bots to send (default: 16)")
     parser.add_argument("--videos", required=True, nargs="+", help="List of video URLs with durations in format: url1:duration1 url2:duration2 (duration in seconds)")
@@ -166,7 +166,7 @@ def main():
         for url, duration in video_urls_with_durations:
             print(f"  - {url} ({duration}s)")
 
-    client = AttendeeClient(args.base_url, args.api_key)
+    client = BogaClient(args.base_url, args.api_key)
 
     # 1) Create N bots
     if args.verbose:

@@ -74,7 +74,7 @@ def autopay_charge(self, organization_id):
             payment_method=customer_default_payment_method,
             off_session=True,
             confirm=True,
-            description=f"Autopay charge for {credit_amount} Attendee credits",
+            description=f"Autopay charge for {credit_amount} Boga credits",
             metadata={"organization_id": str(organization.id), "credit_amount": str(credit_amount), "autopay": "true"},
             api_key=os.getenv("STRIPE_SECRET_KEY"),
             idempotency_key=self.request.id,

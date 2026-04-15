@@ -1,5 +1,5 @@
 <div align="center">
-<img src="static/images/logo_black_white.svg" width="300" alt="Attendee Logo">
+<img src="static/images/logo_black_white.svg" width="300" alt="Boga (Meeting) Assistant Logo">
 </div>
 <h2 align="center">Meeting bots made easy</h2>
 <p align="center">
@@ -11,7 +11,7 @@
 </p>
 
 
-Attendee is an open source API for managing meeting bots on platforms like Zoom or Google Meet. Bring meeting transcripts and recordings into your product in days instead of months. 
+Boga (Meeting) Assistant is an open source API for managing meeting bots on platforms like Zoom or Google Meet. Bring meeting transcripts and recordings into your product in days instead of months. 
 
 See a [quick demo of the API](https://www.loom.com/embed/b738d02aabf84f489f0bfbadf71605e3?sid=ea605ea9-8961-4cc3-9ba9-10b7dbbb8034).
 
@@ -19,19 +19,19 @@ See a [quick demo of the API](https://www.loom.com/embed/b738d02aabf84f489f0bfba
 
 Sign up for free on our hosted instance [here](https://app.attendee.dev/accounts/signup/). 
 
-Interested in using Attendee at your company? Schedule a call [here](https://calendly.com/d/cw6r-2n4-gcw/attendee-intro-meeting). By self-hosting Attendee you can reduce costs by 10x compared to closed source vendors.
+Interested in using Boga (Meeting) Assistant at your company? Schedule a call [here](https://calendly.com/d/cw6r-2n4-gcw/attendee-intro-meeting). By self-hosting Boga (Meeting) Assistant you can reduce costs by 10x compared to closed source vendors.
  
 ## Self hosting
 
-Attendee is designed for convenient self-hosting. It runs as a Django app in a single Docker image. The only external services needed are Postgres and Redis. Directions for running locally in development mode [here](#running-in-development-mode).
+Boga (Meeting) Assistant is designed for convenient self-hosting. It runs as a Django app in a single Docker image. The only external services needed are Postgres and Redis. Directions for running locally in development mode [here](#running-in-development-mode).
 
-## Why use Attendee?
+## Why use Boga (Meeting) Assistant?
 
 Meeting bots are powerful because they have access to the same audio and video streams as human users of meeting software. They power software like Gong or Otter.ai.
 
 Building meeting bots is challenging across all platforms, though some have more support than others. Zoom provides a powerful [SDK](https://developers.zoom.us/docs/meeting-sdk/), but it is low-level and advanced features like per-participant audio streams are only available in the C++ variants of the SDK. Google Meet doesn't provide any support at all, so you need to run a full instance of Google Meet in Chrome.
 
-Attendee abstracts away this complexity into a single developer friendly REST API that manages the state and media streams from these bots. If you're a developer building functionality that requires meeting bots, Attendee can save you months of work vs building from scratch.
+Boga (Meeting) Assistant abstracts away this complexity into a single developer friendly REST API that manages the state and media streams from these bots. If you're a developer building functionality that requires meeting bots, Boga (Meeting) Assistant can save you months of work vs building from scratch.
 
 ## Calling the API
 
@@ -98,17 +98,17 @@ You can also query this endpoint while the meeting is happening to retrieve part
 
 To call the API you need the following
 
-1. Attendee API Key - These are created in the Attendee UI by creating an account in your Attendee instance, signing in and navigating to the 'API Keys' section in the sidebar.
+1. Boga (Meeting) Assistant API Key - These are created in the Boga (Meeting) Assistant UI by creating an account in your Boga (Meeting) Assistant instance, signing in and navigating to the 'API Keys' section in the sidebar.
 
 2. Zoom OAuth Credentials - Needed to join Zoom meetings. These are the Zoom app client id and secret that uniquely identify your bot. Directions on obtaining them [here](#obtaining-zoom-oauth-credentials).
 
 3. Deepgram API Key - Needed for transcribing Zoom meetings. You can sign up for an account [here](https://console.deepgram.com/signup), no credit card required and get 400 hours worth of free transcription.
 
-The Zoom OAuth credentials and Deepgram API key are entered into the Attendee UI in the 'Settings' section in the sidebar.
+The Zoom OAuth credentials and Deepgram API key are entered into the Boga (Meeting) Assistant UI in the 'Settings' section in the sidebar.
 
 ## Missing feature?
 
-We are rapidly adding features to Attendee. If the API is missing something you need, then open an issue in the repository or bring it up in the [Slack Community](https://join.slack.com/t/attendee-community/shared_invite/zt-3l43ns8cl-G8YnMccWVTugMlloUtSf9g). PRs are also welcome!
+We are rapidly adding features to Boga (Meeting) Assistant. If the API is missing something you need, then open an issue in the repository or bring it up in the [Slack Community](https://join.slack.com/t/attendee-community/shared_invite/zt-3l43ns8cl-G8YnMccWVTugMlloUtSf9g). PRs are also welcome!
 
 ## Obtaining Zoom OAuth Credentials
 
@@ -137,9 +137,9 @@ For more details, follow [this guide](https://developers.zoom.us/docs/meeting-sd
 
 ## Contribute 
 
-Attendee is open source. The best way to contribute is to open an issue or join the [Slack Community](https://join.slack.com/t/attendee-community/shared_invite/zt-3l43ns8cl-G8YnMccWVTugMlloUtSf9g) and let us know what you want to build.
+Boga (Meeting) Assistant is open source. The best way to contribute is to open an issue or join the [Slack Community](https://join.slack.com/t/attendee-community/shared_invite/zt-3l43ns8cl-G8YnMccWVTugMlloUtSf9g) and let us know what you want to build.
 
-See CONTRIBUTING.md for detailed instructions on how to contribute to Attendee.
+See CONTRIBUTING.md for detailed instructions on how to contribute to Boga (Meeting) Assistant.
 
 
 ## Roadmap
@@ -157,7 +157,7 @@ See CONTRIBUTING.md for detailed instructions on how to contribute to Attendee.
 - [x] Webhooks for state changes
 - [x] Scheduled meetings
 - [x] Audio input / output via websockets
-- [x] Attendee-Managed Calendar Integration
+- [x] Boga (Meeting) Assistant managed calendar integration
 - [x] [ZAK token](https://developers.zoom.us/docs/meeting-sdk/auth/#start-meetings-and-webinars-with-a-zoom-users-zak-token) and [Join token](https://developers.zoom.us/docs/api/meetings/#tag/meetings/GET/meetings/{meetingId}/jointoken/local_recording) support
 - [x] Stream video and audio from arbitrary website into meeting to support voice agents
 - [ ] Webex Support
