@@ -37,9 +37,49 @@ urlpatterns = [
         name="project-bot-detail",
     ),
     path(
+        "<str:object_id>/bots/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/",
+        projects_views.GuestMomPageView.as_view(),
+        name="guest-bot-mom-page",
+    ),
+    path(
+        "<str:object_id>/bots/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/summary/stream",
+        projects_views.GuestStreamMeetingSummaryView.as_view(),
+        name="guest-bot-mom-summary-stream",
+    ),
+    path(
+        "<str:object_id>/bots/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/summary/save",
+        projects_views.GuestSaveMeetingSummaryView.as_view(),
+        name="guest-bot-mom-summary-save",
+    ),
+    path(
+        "<str:object_id>/bots/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/summary/pdf",
+        projects_views.GuestDownloadMeetingSummaryPdfView.as_view(),
+        name="guest-bot-mom-summary-pdf",
+    ),
+    path(
         "<str:object_id>/app_sessions/<str:bot_object_id>",
         projects_views.ProjectBotDetailView.as_view(),
         name="project-app-session-detail",
+    ),
+    path(
+        "<str:object_id>/app_sessions/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/",
+        projects_views.GuestMomPageView.as_view(),
+        name="guest-app-session-mom-page",
+    ),
+    path(
+        "<str:object_id>/app_sessions/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/summary/stream",
+        projects_views.GuestStreamMeetingSummaryView.as_view(),
+        name="guest-app-session-mom-summary-stream",
+    ),
+    path(
+        "<str:object_id>/app_sessions/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/summary/save",
+        projects_views.GuestSaveMeetingSummaryView.as_view(),
+        name="guest-app-session-mom-summary-save",
+    ),
+    path(
+        "<str:object_id>/app_sessions/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/summary/pdf",
+        projects_views.GuestDownloadMeetingSummaryPdfView.as_view(),
+        name="guest-app-session-mom-summary-pdf",
     ),
     path(
         "<str:object_id>/bots/<str:bot_object_id>/recordings",

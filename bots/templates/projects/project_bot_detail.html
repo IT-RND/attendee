@@ -158,22 +158,55 @@
 </style>
 
 <div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         {% if bot.session_type == SessionTypes.BOT %}
             <h2 class="mb-0">Bot Details</h2>
-            <a href="{% url 'projects:project-bots' project.object_id %}" 
-            class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Back to Bots
-            </a>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                {% if can_share_guest_mom_link and guest_mom_share_url %}
+                <button type="button" class="btn btn-primary btn-sm" data-guest-mom-url="{{ guest_mom_share_url }}" onclick="copyGuestMomLinkFromData(this);" title="Guests can open and edit the MoM without logging in">
+                    <i class="bi bi-link-45deg me-1"></i> Copy guest MoM link
+                </button>
+                {% endif %}
+                <a href="{% url 'projects:project-bots' project.object_id %}"
+                class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left"></i> Back to Bots
+                </a>
+            </div>
         {% endif %}
         {% if bot.session_type == SessionTypes.APP_SESSION %}
             <h2 class="mb-0">App Session Details</h2>
-            <a href="{% url 'projects:project-app-sessions' project.object_id %}" 
-            class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Back to App Sessions
-            </a>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                {% if can_share_guest_mom_link and guest_mom_share_url %}
+                <button type="button" class="btn btn-primary btn-sm" data-guest-mom-url="{{ guest_mom_share_url }}" onclick="copyGuestMomLinkFromData(this);" title="Guests can open and edit the MoM without logging in">
+                    <i class="bi bi-link-45deg me-1"></i> Copy guest MoM link
+                </button>
+                {% endif %}
+                <a href="{% url 'projects:project-app-sessions' project.object_id %}"
+                class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left"></i> Back to App Sessions
+                </a>
+            </div>
         {% endif %}
     </div>
+    {% if can_share_guest_mom_link %}
+    <script>
+    function copyGuestMomLinkFromData(el) {
+        const url = el.getAttribute('data-guest-mom-url');
+        if (!url) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function () {
+                const t = el.innerHTML;
+                el.innerHTML = '<i class="bi bi-check2 me-1"></i> Copied!';
+                setTimeout(function () { el.innerHTML = t; }, 2000);
+            }).catch(function () {
+                window.prompt('Copy guest MoM link:', url);
+            });
+        } else {
+            window.prompt('Copy guest MoM link:', url);
+        }
+    }
+    </script>
+    {% endif %}
 
     <div class="row mb-4">
         <div class="col-md-6">

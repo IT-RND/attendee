@@ -1146,10 +1146,14 @@ class CreateAsyncTranscriptionSerializer(serializers.Serializer):
 )
 class CreateBotSerializer(BotValidationMixin, serializers.Serializer):
     meeting_url = serializers.CharField(help_text="The URL of the meeting to join, e.g. https://zoom.us/j/123?pwd=456")
-    bot_name = serializers.CharField(help_text=f"The name of the bot to create. Defaults to '{DEFAULT_BOT_NAME}' if omitted.", required=False, default=DEFAULT_BOT_NAME)
+    bot_name = serializers.CharField(help_text=f"Bots are always created with the name '{DEFAULT_BOT_NAME}'. Any provided value is ignored.", required=False, default=DEFAULT_BOT_NAME)
     bot_image = BotImageSerializer(help_text="The image for the bot", required=False, default=None)
     metadata = MetadataJSONField(help_text="JSON object containing metadata to associate with the bot", required=False, default=None)
-    bot_chat_message = BotChatMessageRequestSerializer(help_text="The chat message the bot sends after it joins the meeting", required=False, default=None)
+    bot_chat_message = BotChatMessageRequestSerializer(
+        help_text="Optional chat message the bot sends after it joins (once the meeting platform allows chat). If omitted, the bot sends a default Indonesian notice with a guest MoM link (no login; anyone with the link can open and edit the summary).",
+        required=False,
+        default=None,
+    )
     join_at = serializers.DateTimeField(help_text="The time the bot should join the meeting. ISO 8601 format, e.g. 2025-06-13T12:00:00Z", required=False, default=None)
     calendar_event_id = serializers.CharField(help_text="The ID of the calendar event the bot should join.", required=False, default=None)
     deduplication_key = serializers.CharField(help_text="Optional key for deduplicating bots. If a bot with this key already exists in a non-terminal state, the new bot will not be created and an error will be returned.", required=False, default=None)
@@ -1211,6 +1215,9 @@ class CreateBotSerializer(BotValidationMixin, serializers.Serializer):
             raise serializers.ValidationError(e.message)
 
         return value
+
+    def validate_bot_name(self, value):
+        return DEFAULT_BOT_NAME
 
     CALLBACK_SETTINGS_SCHEMA = {
         "type": "object",
@@ -1950,12 +1957,11 @@ class PatchBotTranscriptionSettingsSerializer(serializers.Serializer):
             description="Example of updating the join_at time for a scheduled bot",
         ),
         OpenApiExample(
-            "Update name and image",
+            "Update image",
             value={
-                "bot_name": "My Updated Bot",
                 "bot_image": {"type": "image/png", "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="},
             },
-            description="Example of updating the bot name and/or image",
+            description="Example of updating the bot image",
         ),
     ]
 )
@@ -1963,7 +1969,6 @@ class PatchBotSerializer(BotValidationMixin, serializers.Serializer):
     join_at = serializers.DateTimeField(help_text="The time the bot should join the meeting. ISO 8601 format, e.g. 2025-06-13T12:00:00Z", required=False)
     meeting_url = serializers.CharField(help_text="The URL of the meeting to join, e.g. https://zoom.us/j/123?pwd=456", required=False)
     metadata = serializers.JSONField(help_text="JSON object containing metadata to associate with the bot", required=False)
-    bot_name = serializers.CharField(help_text="The name of the bot, e.g. 'My Bot'", required=False, allow_blank=False)
     bot_image = BotImageSerializer(help_text="The image for the bot", required=False, default=None)
     recording_settings = RecordingSettingsJSONField(
         help_text="The settings for the bot's recording. The settings specified here will completely replace the existing settings.",
@@ -1973,6 +1978,12 @@ class PatchBotSerializer(BotValidationMixin, serializers.Serializer):
 
     def validate_metadata(self, value):
         return _validate_metadata_attribute(value)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if "bot_name" in self.initial_data:
+            raise serializers.ValidationError({"bot_name": f"Bot name is fixed to '{DEFAULT_BOT_NAME}' and cannot be changed."})
+        return attrs
 
 
 @extend_schema_serializer(

@@ -717,6 +717,14 @@ class Bot(models.Model):
 
     meeting_summary = models.TextField(null=True, blank=True)
     meeting_summary_pdf = models.FileField(storage=StorageAlias("recordings"), null=True, blank=True)
+    mom_guest_token = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        unique=True,
+        editable=False,
+        help_text="Secret segment for guest MoM link (no login).",
+    )
 
     def delete_data(self):
         # Check if bot is in a state where the data deleted event can be created
@@ -1842,6 +1850,11 @@ class BotEventManager:
                             "created_at": event.created_at.isoformat(),
                         },
                     )
+
+                    if new_state == BotStates.ENDED:
+                        from bots.tasks.generate_meeting_summary_task import auto_generate_meeting_summary
+
+                        transaction.on_commit(lambda bot_id=bot.id: auto_generate_meeting_summary.delay(bot_id))
 
                     return event
 

@@ -11,10 +11,12 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.urls import reverse
 
+from .meeting_summary_guest_utils import new_mom_guest_token
 from .meeting_url_utils import meeting_type_from_url
 from .models import (
     Bot,
     BotChatMessageRequest,
+    BotChatMessageToOptions,
     BotEventManager,
     BotEventTypes,
     BotMediaRequest,
@@ -27,6 +29,7 @@ from .models import (
     MeetingTypes,
     Project,
     Recording,
+    SessionTypes,
     TranscriptionProviders,
     TranscriptionSettings,
     TranscriptionTypes,
@@ -35,6 +38,7 @@ from .models import (
     WebhookTriggerTypes,
 )
 from .serializers import (
+    DEFAULT_BOT_NAME,
     CreateBotSerializer,
     PatchBotSerializer,
     PatchBotTranscriptionSettingsSerializer,
@@ -43,6 +47,59 @@ from .serializers import (
 from .utils import transcription_provider_from_bot_creation_data
 
 logger = logging.getLogger(__name__)
+
+
+DEFAULT_JOIN_BOT_CHAT_MESSAGE_PREFIX = (
+    "Halo semua saya boga assistant, saya izin catat meeting ini, berikut link MoM nya."
+)
+
+
+def project_bot_dashboard_absolute_url(bot: Bot) -> str:
+    """Absolute URL to the project bot (or app session) detail page for MoM / session progress."""
+    if bot.session_type == SessionTypes.APP_SESSION:
+        relative = reverse(
+            "projects:project-app-session-detail",
+            kwargs={"object_id": bot.project.object_id, "bot_object_id": bot.object_id},
+        )
+    else:
+        relative = reverse(
+            "projects:project-bot-detail",
+            kwargs={"object_id": bot.project.object_id, "bot_object_id": bot.object_id},
+        )
+    return build_site_url(relative)
+
+
+def guest_mom_page_absolute_url(bot: Bot) -> str:
+    """Public-style guest URL for MoM (token grants edit access). Falls back to staff dashboard if no token."""
+    if not bot.mom_guest_token:
+        return project_bot_dashboard_absolute_url(bot)
+    if bot.session_type == SessionTypes.APP_SESSION:
+        rel = reverse(
+            "projects:guest-app-session-mom-page",
+            kwargs={
+                "object_id": bot.project.object_id,
+                "bot_object_id": bot.object_id,
+                "mom_guest_token": bot.mom_guest_token,
+            },
+        )
+    else:
+        rel = reverse(
+            "projects:guest-bot-mom-page",
+            kwargs={
+                "object_id": bot.project.object_id,
+                "bot_object_id": bot.object_id,
+                "mom_guest_token": bot.mom_guest_token,
+            },
+        )
+    return build_site_url(rel)
+
+
+def default_join_bot_chat_message_data(bot: Bot) -> dict:
+    session_url = guest_mom_page_absolute_url(bot)
+    return {
+        "to": BotChatMessageToOptions.EVERYONE,
+        "message": f"{DEFAULT_JOIN_BOT_CHAT_MESSAGE_PREFIX}\n{session_url}",
+    }
 
 
 def build_site_url(path=""):
@@ -206,7 +263,7 @@ def create_bot(data: dict, source: BotCreationSource, project: Project) -> tuple
     if error:
         return None, error
 
-    bot_name = serializer.validated_data["bot_name"]
+    bot_name = serializer.validated_data.get("bot_name", DEFAULT_BOT_NAME)
     transcription_settings = serializer.validated_data["transcription_settings"]
     rtmp_settings = serializer.validated_data["rtmp_settings"]
     recording_settings = serializer.validated_data["recording_settings"]
@@ -264,6 +321,7 @@ def create_bot(data: dict, source: BotCreationSource, project: Project) -> tuple
                 deduplication_key=deduplication_key,
                 state=initial_state,
                 calendar_event=calendar_event,
+                mom_guest_token=new_mom_guest_token(),
             )
 
             Recording.objects.create(
@@ -277,8 +335,8 @@ def create_bot(data: dict, source: BotCreationSource, project: Project) -> tuple
             if bot_image:
                 create_bot_media_request_for_image(bot, bot_image)
 
-            if bot_chat_message:
-                create_bot_chat_message_request(bot, bot_chat_message)
+            chat_message_data = bot_chat_message if bot_chat_message is not None else default_join_bot_chat_message_data(bot)
+            create_bot_chat_message_request(bot, chat_message_data)
 
             # Create bot-level webhook subscriptions if provided
             if webhook_subscriptions:
@@ -400,17 +458,16 @@ def patch_bot(bot: Bot, data: dict) -> tuple[Bot | None, dict | None]:
             bot.join_at = validated_data.get("join_at", bot.join_at)
             previous_meeting_url = bot.meeting_url
             bot.meeting_url = validated_data.get("meeting_url", bot.meeting_url)
-            previous_bot_name = bot.name
-            bot.name = validated_data.get("bot_name", bot.name)
             bot.metadata = validated_data.get("metadata", bot.metadata)
             if validated_data.get("recording_settings"):
                 bot.settings["recording_settings"] = validated_data.get("recording_settings")
 
-            # join_at, meeting_url, bot_name and bot_image can only be updated when the bot is scheduled state. For updating image after the bot is in a meeting, use the output_image endpoint.
-            update_only_legal_for_scheduled_bots = bot.join_at != previous_join_at or bot.meeting_url != previous_meeting_url or bot.name != previous_bot_name or validated_data.get("bot_image") or validated_data.get("recording_settings")
+            # join_at, meeting_url, bot_image and recording_settings can only be updated when the bot is scheduled state.
+            # For updating image after the bot is in a meeting, use the output_image endpoint.
+            update_only_legal_for_scheduled_bots = bot.join_at != previous_join_at or bot.meeting_url != previous_meeting_url or validated_data.get("bot_image") or validated_data.get("recording_settings")
             if bot.state != BotStates.SCHEDULED:
                 if update_only_legal_for_scheduled_bots:
-                    return None, {"error": f"Bot is in state {BotStates.state_to_api_code(bot.state)} but join_at, meeting_url, bot_name, bot_image and recording_settings can only be updated when in the scheduled state"}
+                    return None, {"error": f"Bot is in state {BotStates.state_to_api_code(bot.state)} but join_at, meeting_url, bot_image and recording_settings can only be updated when in the scheduled state"}
 
             bot.save()
 

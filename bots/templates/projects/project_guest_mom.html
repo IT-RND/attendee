@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% load bot_filters %}
+
+{% block body_content %}
+<style>
+    .detail-card { margin-bottom: 1.5rem; }
+    .recording-item { border-radius: 0.25rem; margin-bottom: 1rem; }
+    .recording-container {
+        display: flex;
+        gap: 1rem;
+        height: 600px;
+    }
+    .transcript-column {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+    }
+    .video-column { flex: 1; }
+    .utterance-item {
+        margin-bottom: 1rem;
+        padding: 0.5rem;
+        border-bottom: 1px solid #eee;
+        display: flex;
+    }
+    .speaker-bar {
+        width: 4px;
+        margin-right: 10px;
+        border-radius: 2px;
+    }
+    .utterance-content { flex: 1; }
+    .utterance-timestamp { font-size: 0.8rem; color: #666; }
+    .utterance-text { margin-top: 0.25rem; }
+    .highlighted { background-color: #e2f0ff; }
+    .word { display: inline; }
+    .bold { font-weight: bold; }
+    .speaker-timeline-wrapper {
+        margin-top: 0.75rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 0.75rem;
+        background: #fafafa;
+    }
+    .speaker-timeline-labels { flex-shrink: 0; max-width: 60px; overflow: hidden; }
+    .speaker-timeline-tracks { flex: 1; position: relative; min-width: 0; }
+    .speaker-timeline-label {
+        height: 22px;
+        line-height: 22px;
+        font-size: 0.7rem;
+        color: #555;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-right: 6px;
+        margin-bottom: 2px;
+    }
+    .speaker-timeline-track {
+        height: 22px;
+        position: relative;
+        background: #eee;
+        border-radius: 3px;
+        margin-bottom: 2px;
+        cursor: pointer;
+    }
+    .speaker-timeline-bar {
+        position: absolute;
+        top: 2px;
+        height: calc(100% - 4px);
+        border-radius: 2px;
+        opacity: 0.8;
+        transition: opacity 0.15s;
+    }
+    .speaker-timeline-bar:hover { opacity: 1; }
+    .speaker-timeline-playhead {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #dc3545;
+        z-index: 10;
+        pointer-events: none;
+        transition: left 0.1s linear;
+    }
+</style>
+
+<div class="container mt-4 mb-5">
+    <h1 class="h4 mb-2">Meeting minutes</h1>
+    <p class="text-muted small mb-4">
+        Guest link — view and edit the MoM, transcript, and recording. Anyone with this link can see session media; treat it like a shared folder.
+    </p>
+
+    {% if bot.state == BotStates.POST_PROCESSING or bot.state == BotStates.ENDED or bot.state == BotStates.FATAL_ERROR or bot.state == BotStates.DATA_DELETED %}
+        {% include 'projects/partials/project_bot_summary.html' %}
+    {% else %}
+        <div class="alert alert-info mb-4">
+            The meeting summary tools unlock after this session finishes or reaches a post-meeting state.
+            Current status: <strong>{{ bot.get_state_display }}</strong>.
+        </div>
+    {% endif %}
+
+    <div class="card detail-card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="fw-semibold">Transcript &amp; recording</span>
+        </div>
+        <div class="card-body">
+            {% include 'projects/partials/project_bot_recordings.html' %}
+        </div>
+    </div>
+</div>
+{% endblock %}

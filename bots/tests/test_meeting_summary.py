@@ -18,9 +18,11 @@ from bots.models import (
     RecordingStates,
     RecordingTranscriptionStates,
     RecordingTypes,
+    SessionTypes,
     TranscriptionTypes,
     Utterance,
 )
+from bots.tasks.generate_meeting_summary_task import auto_generate_meeting_summary
 
 
 def mock_file_field_delete_sets_name_to_none(instance, save=True):
@@ -177,6 +179,38 @@ class MeetingSummaryViewTest(MeetingSummaryFileFieldMixin, TestCase):
         self.assertContains(response, "Meeting Summary")
         self.assertContains(response, "Generate Summary")
 
+    def test_bot_detail_shows_generate_summary_button_during_joined_recording(self):
+        self.bot.state = BotStates.JOINED_RECORDING
+        self.bot.save(update_fields=["state"])
+
+        response = self.client.get(
+            reverse("projects:project-bot-detail", args=[self.project.object_id, self.bot.object_id])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Meeting Summary")
+        self.assertContains(response, "Generate Summary")
+
+    @patch("bots.meeting_summary_utils.requests.post")
+    def test_generate_meeting_summary_during_joined_recording(self, mock_post):
+        self.bot.state = BotStates.JOINED_RECORDING
+        self.bot.save(update_fields=["state"])
+
+        mock_response = Mock(status_code=200)
+        mock_response.json.return_value = {
+            "output_text": "## Ringkasan Singkat\nRapat sedang berjalan dan membahas peluncuran fitur."
+        }
+        mock_post.return_value = mock_response
+
+        response = self.client.post(
+            reverse("projects:generate-meeting-summary", args=[self.project.object_id, self.bot.object_id])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ringkasan Singkat")
+        self.bot.refresh_from_db()
+        self.assertIn("Rapat sedang berjalan", self.bot.meeting_summary)
+
     def test_meeting_end_terminates_recording_before_post_processing_completes(self):
         self.bot.state = BotStates.JOINED_RECORDING
         self.bot.save(update_fields=["state"])
@@ -193,6 +227,34 @@ class MeetingSummaryViewTest(MeetingSummaryFileFieldMixin, TestCase):
         self.assertEqual(self.bot.state, BotStates.POST_PROCESSING)
         self.assertEqual(self.recording.state, RecordingStates.COMPLETE)
         self.assertEqual(self.recording.transcription_state, RecordingTranscriptionStates.COMPLETE)
+
+    @patch("bots.tasks.generate_meeting_summary_task.auto_generate_meeting_summary.delay")
+    def test_post_processing_completed_queues_auto_summary_generation(self, mock_delay):
+        self.bot.state = BotStates.POST_PROCESSING
+        self.bot.save(update_fields=["state"])
+
+        with self.captureOnCommitCallbacks(execute=True):
+            event = BotEventManager.create_event(self.bot, BotEventTypes.POST_PROCESSING_COMPLETED)
+
+        self.bot.refresh_from_db()
+
+        self.assertEqual(event.new_state, BotStates.ENDED)
+        self.assertEqual(self.bot.state, BotStates.ENDED)
+        mock_delay.assert_called_once_with(self.bot.id)
+
+    @patch("bots.meeting_summary_utils.requests.post")
+    def test_auto_generate_meeting_summary_task_saves_summary_for_ended_bot(self, mock_post):
+        mock_response = Mock(status_code=200)
+        mock_response.json.return_value = {
+            "output_text": "## Ringkasan Singkat\nMoM otomatis setelah meeting selesai."
+        }
+        mock_post.return_value = mock_response
+
+        auto_generate_meeting_summary.run(self.bot.id)
+
+        self.bot.refresh_from_db()
+        self.assertIn("MoM otomatis", self.bot.meeting_summary)
+        self.assertTrue(self.bot.meeting_summary_pdf.name.endswith(".pdf"))
 
 
 class SaveMeetingSummaryViewTest(MeetingSummaryFileFieldMixin, TestCase):
@@ -414,3 +476,78 @@ class StreamMeetingSummaryViewTest(MeetingSummaryFileFieldMixin, TestCase):
             reverse("projects:stream-meeting-summary", args=[self.project.object_id, self.bot.object_id])
         )
         self.assertEqual(response.status_code, 302)
+
+
+class GuestMomPageTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        organization = Organization.objects.create(name="Guest MoM Org")
+        self.project = Project.objects.create(name="Guest MoM Project", organization=organization)
+        self.bot = Bot.objects.create(
+            project=self.project,
+            name="Ended Bot",
+            meeting_url="https://meet.google.com/abc-defg-hij",
+            state=BotStates.ENDED,
+            settings={"recording_settings": {"format": "mp4"}},
+            mom_guest_token="guestmom_integration_token_01",
+        )
+
+    def test_guest_mom_page_200_without_login(self):
+        url = reverse(
+            "projects:guest-bot-mom-page",
+            kwargs={
+                "object_id": self.project.object_id,
+                "bot_object_id": self.bot.object_id,
+                "mom_guest_token": self.bot.mom_guest_token,
+            },
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Guest link")
+        self.assertContains(response, "Transcript")
+        self.assertContains(response, "No recordings available")
+
+    def test_guest_mom_wrong_token_returns_404(self):
+        url = reverse(
+            "projects:guest-bot-mom-page",
+            kwargs={
+                "object_id": self.project.object_id,
+                "bot_object_id": self.bot.object_id,
+                "mom_guest_token": "wrong-token-not-valid",
+            },
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+    def test_guest_app_session_url_rejects_meeting_bot(self):
+        url = reverse(
+            "projects:guest-app-session-mom-page",
+            kwargs={
+                "object_id": self.project.object_id,
+                "bot_object_id": self.bot.object_id,
+                "mom_guest_token": self.bot.mom_guest_token,
+            },
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+    def test_guest_bot_url_rejects_app_session(self):
+        app_bot = Bot.objects.create(
+            project=self.project,
+            name="App Session",
+            meeting_url="app_session",
+            state=BotStates.ENDED,
+            settings={"recording_settings": {"format": "mp4"}},
+            session_type=SessionTypes.APP_SESSION,
+            mom_guest_token="guestmom_app_session_token_02",
+        )
+        url = reverse(
+            "projects:guest-bot-mom-page",
+            kwargs={
+                "object_id": self.project.object_id,
+                "bot_object_id": app_bot.object_id,
+                "mom_guest_token": app_bot.mom_guest_token,
+            },
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)

@@ -8,6 +8,7 @@ from .app_session_serializers import (
     CreateAppSessionSerializer,
 )
 from .bots_api_utils import BotCreationSource, create_webhook_subscriptions
+from .meeting_summary_guest_utils import new_mom_guest_token
 from .models import (
     Bot,
     BotEventManager,
@@ -66,6 +67,7 @@ def create_app_session(data: dict, source: BotCreationSource, project: Project) 
                 meeting_url="app_session",
                 name="App Session",
                 session_type=SessionTypes.APP_SESSION,
+                mom_guest_token=new_mom_guest_token(),
             )
 
             Recording.objects.create(

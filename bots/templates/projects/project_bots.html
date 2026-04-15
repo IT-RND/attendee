@@ -204,6 +204,9 @@
                         <th>Last Event</th>
                         {% if has_scheduled_bots %}<th>Join At</th>{% endif %}
                         <th>Created</th>
+                        {% if can_share_guest_mom_link %}
+                        <th class="text-end" style="width: 1%;">Actions</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -255,6 +258,26 @@
                         </td>
                         {% endif %}
                         <td><small>{{ bot.created_at|date:"M d, Y H:i" }}</small></td>
+                        {% if can_share_guest_mom_link %}
+                        <td class="text-end align-middle" onclick="event.stopPropagation();">
+                            {% if bot.guest_mom_share_url %}
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" id="sessionMenu{{ forloop.counter }}" data-bs-toggle="dropdown" aria-expanded="false" onclick="event.stopPropagation();" title="Session menu">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="sessionMenu{{ forloop.counter }}">
+                                    <li>
+                                        <button type="button" class="dropdown-item" data-guest-mom-url="{{ bot.guest_mom_share_url }}" onclick="event.stopPropagation(); copyGuestMomLinkFromData(this);">
+                                            <i class="bi bi-link-45deg me-1"></i> Copy guest MoM link
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                            {% else %}
+                            <span class="text-muted small" title="Run migrations or recreate the session to enable guest links">—</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -337,6 +360,22 @@
     }
     
     // Add script to automatically open the modal if the flag is set
+    function copyGuestMomLinkFromData(el) {
+        const url = el.getAttribute('data-guest-mom-url');
+        if (!url) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function () {
+                const t = el.innerHTML;
+                el.innerHTML = '<i class="bi bi-check2 me-1"></i> Copied!';
+                setTimeout(function () { el.innerHTML = t; }, 2000);
+            }).catch(function () {
+                window.prompt('Copy guest MoM link:', url);
+            });
+        } else {
+            window.prompt('Copy guest MoM link:', url);
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         {% if open_create_modal %}
             const createBotModal = new bootstrap.Modal(document.getElementById('createBotModal'));

@@ -17,9 +17,9 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="id_bot_name" class="form-label">Bot Name</label>
-                        <input type="text" class="form-control" id="id_bot_name" name="bot_name" value="Meeting Bot">
-                        <div class="form-text">A friendly name for this bot</div>
+                        <label class="form-label">Bot Name</label>
+                        <input type="text" class="form-control" value="Boga Assistant" disabled readonly>
+                        <div class="form-text">Bots always join as Boga Assistant.</div>
                     </div>
                     
                     <div id="formErrors" class="alert alert-danger d-none"></div>
@@ -42,7 +42,6 @@
   --header 'Content-Type: application/json' \
   --data '{
     "meeting_url": "https://zoom.us/j/123?pwd=456",
-    "bot_name": "My Bot"
   }'</code></pre>
                         </div>
                     </div>
@@ -128,14 +127,12 @@
     function initializeCodeListener() {
         // Get form fields
         const meetingUrlField = document.getElementById('id_meeting_url');
-        const botNameField = document.getElementById('id_bot_name');
         const codeBlock = document.getElementById('apiCodeExample');
         
-        if (meetingUrlField && botNameField && codeBlock) {
+        if (meetingUrlField && codeBlock) {
             // Function to update the curl command
             function updateCurlCommand() {
                 const meetingUrl = meetingUrlField.value || 'https://zoom.us/j/123?pwd=456';
-                const botName = botNameField.value || 'My Bot';
                 const currentHost = window.location.origin;
                 
                 // Create properly formatted curl command  
@@ -145,8 +142,7 @@
                     `  --header 'Authorization: Token YOUR_API_KEY_HERE' \\`,
                     `  --header 'Content-Type: application/json' \\`,
                     `  --data '{`,
-                    `    "meeting_url": "${meetingUrl}",`,
-                    `    "bot_name": "${botName}"`,
+                    `    "meeting_url": "${meetingUrl}"`,
                     `  }'`
                 ];
                 
@@ -158,7 +154,6 @@
             
             // Add event listeners to form fields
             meetingUrlField.addEventListener('input', updateCurlCommand);
-            botNameField.addEventListener('input', updateCurlCommand);
             
             // Set initial value with proper formatting
             updateCurlCommand();

@@ -3,6 +3,7 @@ import logging
 
 from django.core.management.base import BaseCommand
 
+from bots.meeting_summary_guest_utils import new_mom_guest_token
 from bots.models import (
     Bot,
     BotEventManager,
@@ -51,6 +52,7 @@ class Command(BaseCommand):
             meeting_url=meeting_url,
             name=bot_name,
             settings=settings,
+            mom_guest_token=new_mom_guest_token(),
         )
 
         Recording.objects.create(

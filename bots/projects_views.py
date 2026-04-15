@@ -18,8 +18,15 @@ from django.views.generic import ListView
 
 from accounts.models import User, UserRole
 
-from .bots_api_utils import BotCreationSource, create_bot, create_webhook_subscription
+from .bots_api_utils import BotCreationSource, create_bot, create_webhook_subscription, guest_mom_page_absolute_url
 from .launch_bot_utils import launch_bot
+from .meeting_summary_guest_utils import (
+    assert_guest_url_matches_session_type,
+    authenticated_summary_api_urls,
+    get_bot_for_guest_mom,
+    guest_summary_api_urls,
+    user_can_share_guest_mom_link,
+)
 from .meeting_summary_utils import (
     MeetingSummaryError,
     ensure_meeting_summary_pdf,
@@ -62,6 +69,7 @@ from .models import (
     WebhookTriggerTypes,
     ZoomOAuthApp,
 )
+from .serializers import DEFAULT_BOT_NAME
 from .storage import remote_storage_url
 from .stripe_utils import credit_amount_for_purchase_amount_dollars, process_checkout_session_completed
 from .tasks.deliver_webhook_task import deliver_webhook
@@ -69,6 +77,33 @@ from .utils import generate_recordings_json_for_bot_detail_view
 from .zoom_oauth_apps_api_utils import create_or_update_zoom_oauth_app
 
 logger = logging.getLogger(__name__)
+
+
+def _recordings_partial_context(bot: Bot) -> dict:
+    """Shared context for the recordings + transcript + video partial (authenticated or guest)."""
+    bot = (
+        Bot.objects.select_related()
+        .prefetch_related(
+            models.Prefetch(
+                "recordings",
+                queryset=Recording.objects.prefetch_related(
+                    models.Prefetch(
+                        "utterances",
+                        queryset=Utterance.objects.select_related("participant"),
+                    ),
+                ),
+            ),
+        )
+        .get(pk=bot.pk)
+    )
+    return {
+        "bot": bot,
+        "BotStates": BotStates,
+        "RecordingStates": RecordingStates,
+        "RecordingTypes": RecordingTypes,
+        "RecordingTranscriptionStates": RecordingTranscriptionStates,
+        "recordings": generate_recordings_json_for_bot_detail_view(bot),
+    }
 
 
 def get_project_for_user(user, project_object_id):
@@ -623,6 +658,9 @@ class ProjectBotsView(LoginRequiredMixin, ProjectUrlContextMixin, ListView):
                 bot.last_event_type_display = dict(BotEventTypes.choices).get(bot.last_event_type, str(bot.last_event_type))
             if bot.last_event_sub_type:
                 bot.last_event_sub_type_display = dict(BotEventSubTypes.choices).get(bot.last_event_sub_type, str(bot.last_event_sub_type))
+            bot.guest_mom_share_url = guest_mom_page_absolute_url(bot) if bot.mom_guest_token else None
+
+        context["can_share_guest_mom_link"] = user_can_share_guest_mom_link(self.request.user, project)
 
         return context
 
@@ -872,6 +910,9 @@ class ProjectBotDetailView(LoginRequiredMixin, ProjectUrlContextMixin, View):
                 "bot": bot,
                 "BotStates": BotStates,
                 "SessionTypes": SessionTypes,
+                "can_share_guest_mom_link": user_can_share_guest_mom_link(request.user, project),
+                "guest_mom_share_url": guest_mom_page_absolute_url(bot) if bot.mom_guest_token else None,
+                "summary_api_urls": authenticated_summary_api_urls(project.object_id, bot.object_id),
                 "meeting_summary_ready": meeting_summary_is_ready(bot),
                 "meeting_summary_status_message": meeting_summary_status_message,
                 "meeting_summary": bot.meeting_summary or "",
@@ -916,6 +957,9 @@ class GenerateMeetingSummaryView(LoginRequiredMixin, ProjectUrlContextMixin, Vie
             "meeting_summary_error": meeting_summary_error,
             "meeting_summary_ready": meeting_summary is not None or meeting_summary_is_ready(bot),
             "meeting_summary_status_message": meeting_summary_status_message,
+            "summary_api_urls": authenticated_summary_api_urls(project.object_id, bot.object_id),
+            "can_share_guest_mom_link": user_can_share_guest_mom_link(request.user, project),
+            "guest_mom_share_url": guest_mom_page_absolute_url(bot) if bot.mom_guest_token else None,
         }
         return render(request, "projects/partials/project_bot_summary.html", context)
 
@@ -988,36 +1032,120 @@ class DownloadMeetingSummaryPdfView(LoginRequiredMixin, View):
         return redirect(remote_storage_url(bot.meeting_summary_pdf))
 
 
+def _guest_expect_app_session(request):
+    return "/app_sessions/" in request.path
+
+
+class GuestMomPageView(View):
+    """Guest-access MoM page (token in URL). No login required."""
+
+    def get(self, request, object_id, bot_object_id, mom_guest_token):
+        expect_app = _guest_expect_app_session(request)
+        bot = get_bot_for_guest_mom(object_id, bot_object_id, mom_guest_token)
+        assert_guest_url_matches_session_type(bot, expect_app_session=expect_app)
+        meeting_summary_status_message = get_meeting_summary_availability_message(bot)
+        summary_api_urls = guest_summary_api_urls(
+            object_id,
+            bot_object_id,
+            mom_guest_token,
+            expect_app_session=expect_app,
+        )
+        context = {
+            "project": bot.project,
+            "bot": bot,
+            "BotStates": BotStates,
+            "SessionTypes": SessionTypes,
+            "summary_api_urls": summary_api_urls,
+            "meeting_summary_ready": meeting_summary_is_ready(bot),
+            "meeting_summary_status_message": meeting_summary_status_message,
+            "meeting_summary": bot.meeting_summary or "",
+        }
+        context.update(_recordings_partial_context(bot))
+        return render(request, "projects/project_guest_mom.html", context)
+
+
+class GuestStreamMeetingSummaryView(View):
+    def post(self, request, object_id, bot_object_id, mom_guest_token):
+        expect_app = _guest_expect_app_session(request)
+        bot = get_bot_for_guest_mom(object_id, bot_object_id, mom_guest_token)
+        assert_guest_url_matches_session_type(bot, expect_app_session=expect_app)
+
+        try:
+            stream = generate_meeting_summary_stream(bot)
+        except MeetingSummaryError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+
+        def event_stream():
+            collected = []
+            try:
+                for chunk in stream:
+                    collected.append(chunk)
+                    yield f"data: {json.dumps({'delta': chunk})}\n\n"
+            except MeetingSummaryError as exc:
+                yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+            except Exception:
+                logger.exception("Unexpected error during guest meeting summary streaming for bot %s", bot.object_id)
+                yield f"data: {json.dumps({'error': 'An unexpected error occurred. Please try again.'})}\n\n"
+            finally:
+                full_text = "".join(collected).strip()
+                if full_text:
+                    save_meeting_summary_artifacts(bot, full_text)
+                yield "data: [DONE]\n\n"
+
+        response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+        response["Cache-Control"] = "no-cache"
+        response["X-Accel-Buffering"] = "no"
+        return response
+
+
+class GuestSaveMeetingSummaryView(View):
+    def post(self, request, object_id, bot_object_id, mom_guest_token):
+        expect_app = _guest_expect_app_session(request)
+        bot = get_bot_for_guest_mom(object_id, bot_object_id, mom_guest_token)
+        assert_guest_url_matches_session_type(bot, expect_app_session=expect_app)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+        markdown_content = data.get("markdown", "").strip()
+        if not markdown_content:
+            return JsonResponse({"error": "Summary content cannot be empty"}, status=400)
+
+        save_meeting_summary_artifacts(bot, markdown_content)
+        return JsonResponse({"status": "ok"})
+
+
+class GuestDownloadMeetingSummaryPdfView(View):
+    def get(self, request, object_id, bot_object_id, mom_guest_token):
+        expect_app = _guest_expect_app_session(request)
+        bot = get_bot_for_guest_mom(object_id, bot_object_id, mom_guest_token)
+        assert_guest_url_matches_session_type(bot, expect_app_session=expect_app)
+
+        if bot.meeting_summary_pdf and bot.meeting_summary_pdf.name:
+            return redirect(remote_storage_url(bot.meeting_summary_pdf))
+
+        if not (bot.meeting_summary or "").strip():
+            return HttpResponse("Meeting summary not found", status=404)
+
+        if not ensure_meeting_summary_pdf(bot):
+            return HttpResponse("Meeting summary PDF could not be generated", status=500)
+
+        return redirect(remote_storage_url(bot.meeting_summary_pdf))
+
+
 class ProjectBotRecordingsView(LoginRequiredMixin, ProjectUrlContextMixin, View):
     def get(self, request, object_id, bot_object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
 
         try:
-            bot = (
-                Bot.objects.select_related()
-                .prefetch_related(
-                    models.Prefetch(
-                        "recordings",
-                        queryset=Recording.objects.prefetch_related(
-                            models.Prefetch(
-                                "utterances",
-                                queryset=Utterance.objects.select_related("participant"),
-                            ),
-                        ),
-                    ),
-                )
-                .get(object_id=bot_object_id, project=project)
-            )
+            bot = Bot.objects.select_related().get(object_id=bot_object_id, project=project)
         except Bot.DoesNotExist:
             # Redirect to bots list if bot not found
             return redirect("bots:project-bots", object_id=object_id)
 
-        context = {
-            "RecordingStates": RecordingStates,
-            "RecordingTypes": RecordingTypes,
-            "RecordingTranscriptionStates": RecordingTranscriptionStates,
-            "recordings": generate_recordings_json_for_bot_detail_view(bot),
-        }
+        context = _recordings_partial_context(bot)
 
         return render(request, "projects/partials/project_bot_recordings.html", context)
 
@@ -1358,7 +1486,7 @@ class CreateBotView(LoginRequiredMixin, ProjectUrlContextMixin, View):
 
             data = {
                 "meeting_url": request.POST.get("meeting_url"),
-                "bot_name": request.POST.get("bot_name") or "Meeting Bot",
+                "bot_name": DEFAULT_BOT_NAME,
             }
 
             bot, error = create_bot(data=data, source=BotCreationSource.DASHBOARD, project=project)

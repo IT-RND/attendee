@@ -5,10 +5,19 @@
                 <h5 class="card-title mb-1">Meeting Summary</h5>
                 <p class="text-muted small mb-0">Generate a GPT-5.4 summary in Bahasa Indonesia from the meeting transcript.</p>
             </div>
-            <div class="d-flex gap-2 align-items-center">
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                {% if can_share_guest_mom_link and guest_mom_share_url %}
+                <button type="button"
+                        class="btn btn-outline-primary btn-sm"
+                        data-guest-mom-url="{{ guest_mom_share_url }}"
+                        onclick="copyGuestMomLinkFromData(this);"
+                        title="Copy link for guests (no login)">
+                    <i class="bi bi-link-45deg me-1"></i> Guest MoM link
+                </button>
+                {% endif %}
                 <span id="summary-save-status" class="text-muted small" style="display:none;"></span>
                 {% if meeting_summary_ready or meeting_summary %}
-                    <a href="{% url 'projects:download-meeting-summary-pdf' project.object_id bot.object_id %}"
+                    <a href="{{ summary_api_urls.pdf }}"
                        id="btn-download-summary-pdf"
                        class="btn btn-outline-secondary btn-sm"
                        style="{% if not meeting_summary %}display:none;{% endif %}">
@@ -183,8 +192,8 @@ import { marked } from 'marked';
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 
-const STREAM_URL = "{% url 'projects:stream-meeting-summary' project.object_id bot.object_id %}";
-const SAVE_URL = "{% url 'projects:save-meeting-summary' project.object_id bot.object_id %}";
+const STREAM_URL = "{{ summary_api_urls.stream }}";
+const SAVE_URL = "{{ summary_api_urls.save }}";
 const CSRF_TOKEN = "{{ csrf_token }}";
 
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });

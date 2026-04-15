@@ -26,8 +26,22 @@ class MeetingSummaryError(Exception):
     pass
 
 
+def _live_summary_states():
+    return {
+        BotStates.JOINED_NOT_RECORDING,
+        BotStates.JOINED_RECORDING,
+        BotStates.JOINED_RECORDING_PAUSED,
+        BotStates.JOINED_RECORDING_PERMISSION_DENIED,
+        BotStates.CONNECTED,
+    }
+
+
+def bot_is_in_live_meeting_state(bot):
+    return bot.state in _live_summary_states()
+
+
 def bot_can_generate_meeting_summary(bot):
-    return bot.state == BotStates.POST_PROCESSING or bot.state in BotStates.post_meeting_states()
+    return bot_is_in_live_meeting_state(bot) or bot.state == BotStates.POST_PROCESSING or bot.state in BotStates.post_meeting_states()
 
 
 def meeting_summary_is_ready(bot):
@@ -50,6 +64,8 @@ def get_meeting_summary_availability_message(bot):
         return "Add OpenAI credentials in project settings to generate a GPT-5.4 summary."
 
     if not _build_transcript_text(bot):
+        if bot_is_in_live_meeting_state(bot):
+            return "No transcript is available yet. Wait for transcript snippets to arrive, then generate a live summary."
         return "No transcript is available yet. Finish transcription first."
 
     return "Transcript is ready. Click Generate Summary to create a Bahasa Indonesia summary."
@@ -70,6 +86,8 @@ def generate_meeting_summary(bot):
 
     transcript_text = _build_transcript_text(bot)
     if not transcript_text:
+        if bot_is_in_live_meeting_state(bot):
+            raise MeetingSummaryError("No transcript is available yet. Wait for transcript snippets to arrive, then generate a live summary.")
         raise MeetingSummaryError("No transcript is available yet. Finish transcription first.")
 
     base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
@@ -126,6 +144,8 @@ def generate_meeting_summary_stream(bot):
 
     transcript_text = _build_transcript_text(bot)
     if not transcript_text:
+        if bot_is_in_live_meeting_state(bot):
+            raise MeetingSummaryError("No transcript is available yet. Wait for transcript snippets to arrive, then generate a live summary.")
         raise MeetingSummaryError("No transcript is available yet. Finish transcription first.")
 
     base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")

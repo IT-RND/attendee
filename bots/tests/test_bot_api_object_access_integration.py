@@ -138,6 +138,7 @@ class BotApiObjectAccessIntegrationTest(TransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         created_bot = Bot.objects.get(object_id=response.json()["id"])
         self.assertEqual(created_bot.project, self.project_a)
+        self.assertEqual(created_bot.name, "Boga Assistant")
 
     # Tests for Bot Detail View (GET/PATCH/DELETE /api/bots/<object_id>)
     def test_bot_detail_access_control(self):
