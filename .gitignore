@@ -96,6 +96,6 @@ local_settings.py
 
 .env
 db.sqlite3
-
+34.128.99.163
 custom/
-docker-compose.yaml
+docker-compose.yamlhttp://34.128.99.163/

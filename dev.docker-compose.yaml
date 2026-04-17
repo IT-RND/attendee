@@ -32,7 +32,7 @@ services:
     networks:
       - attendee_network
     ports:
-      - "8000:8000"
+      - "8029:8000"
     environment:
       - POSTGRES_HOST=postgres
       - REDIS_URL=redis://redis:6379/5
@@ -47,7 +47,7 @@ services:
     networks:
       - attendee_network
     ports:
-      - "8001:8000"
+      - "8029:8000"
     environment:
       - DJANGO_SETTINGS_MODULE=attendee.settings.development
       - ENABLE_CHROME_SANDBOX=true
