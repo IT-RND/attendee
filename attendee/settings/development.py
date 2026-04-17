@@ -4,7 +4,8 @@ from .base import *
 
 DEBUG = True
 SITE_DOMAIN = "localhost:8000"
-ALLOWED_HOSTS = ["tendee-stripe-hooks.ngrok.io", "localhost","meeting-assistant.boga.co.id","34.128.99.163"]
+# DEBUG=True: accept any Host (port-forwards, LAN IPs, ngrok, etc.).
+ALLOWED_HOSTS = ["*"]
 
 DATABASES = {
     "default": {
