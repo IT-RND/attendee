@@ -61,12 +61,13 @@ if os.getenv("ERROR_REPORTS_RECEIVER_EMAIL_ADDRESS"):
 
 SERVER_EMAIL = os.getenv("SERVER_EMAIL", "noreply@mail.attendee.dev")
 
-# Needed on GKE
+# Needed behind a reverse proxy / HTTPS. Django matches subdomains with a leading
+# dot (https://.example.com), not https://*.example.com — the latter never matches.
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "CSRF_TRUSTED_ORIGINS",
-        "https://*.attendee.dev,https://*.boga.co.id",
+        "https://.attendee.dev,https://.boga.co.id,https://meeting-assistant.boga.co.id",
     ).split(",")
     if origin.strip()
 ]

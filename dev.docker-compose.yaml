@@ -37,6 +37,9 @@ services:
       - POSTGRES_HOST=postgres
       - REDIS_URL=redis://redis:6379/5
       - DJANGO_SETTINGS_MODULE=attendee.settings.development
+      # HTTPS hostname in browser but HTTP to the container (tunnel / edge TLS):
+      # - USE_FORWARDED_HTTPS=true
+      # - CSRF_TRUSTED_ORIGINS=https://meeting-assistant.boga.co.id
     command: python manage.py runserver 0.0.0.0:8000
     entrypoint: []
 

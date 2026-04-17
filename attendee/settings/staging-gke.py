@@ -53,11 +53,12 @@ ADMINS = []
 
 SERVER_EMAIL = "noreply@mail.attendee.dev"
 
+# Django matches subdomains with a leading dot (https://.example.com), not *.example.com.
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "CSRF_TRUSTED_ORIGINS",
-        "https://*.attendee.dev,https://*.boga.co.id",
+        "https://.attendee.dev,https://.boga.co.id,https://meeting-assistant.boga.co.id",
     ).split(",")
     if origin.strip()
 ]
