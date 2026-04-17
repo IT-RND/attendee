@@ -322,10 +322,28 @@ class InviteUserIntegrationTest(TransactionTestCase):
 
         # Should fail with error
         self.assertEqual(response.status_code, 400)
-        self.assertIn("Please select at least one project for regular users", response.content.decode())
+        self.assertIn("Please select at least one project for non-administrator users", response.content.decode())
 
         # No user should be created
         self.assertFalse(User.objects.filter(email="noproject@example.com").exists())
 
         # No email should be sent
         self.assertEqual(len(mail.outbox), 0)
+
+    def test_invite_meeting_creator_user(self):
+        """Meeting creator role gets project access but cannot manage credentials in the UI."""
+        self.client.force_login(self.inviting_user)
+        invite_url = reverse("projects:invite-user", kwargs={"object_id": self.project.object_id})
+        email = "meeting_creator_invite@example.com"
+        response = self.client.post(
+            invite_url,
+            {
+                "email": email,
+                "user_role": UserRole.MEETING_CREATOR,
+                "project_access": [self.project.object_id],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        user = User.objects.get(email=email)
+        self.assertEqual(user.role, UserRole.MEETING_CREATOR)
+        self.assertTrue(ProjectAccess.objects.filter(user=user, project=self.project).exists())

@@ -4,7 +4,16 @@ from .base import *
 
 DEBUG = True
 SITE_DOMAIN = "localhost:8000"
-ALLOWED_HOSTS = ["tendee-stripe-hooks.ngrok.io", "localhost"]
+ALLOWED_HOSTS = [
+    "tendee-stripe-hooks.ngrok.io",
+    "localhost",
+    "127.0.0.1",
+]
+_extra_allowed = os.getenv("DJANGO_ALLOWED_HOSTS", "")
+if _extra_allowed:
+    ALLOWED_HOSTS.extend(
+        host.strip() for host in _extra_allowed.split(",") if host.strip()
+    )
 
 DATABASES = {
     "default": {

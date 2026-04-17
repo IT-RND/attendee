@@ -306,7 +306,7 @@ class UserManagementIntegrationTest(TransactionTestCase):
 
         # Should fail
         self.assertEqual(response.status_code, 400)
-        self.assertIn("Please select at least one project for regular users", response.content.decode())
+        self.assertIn("Please select at least one project for non-administrator users", response.content.decode())
 
     def test_edit_user_invalid_project_access(self):
         """Test that providing invalid project IDs fails"""

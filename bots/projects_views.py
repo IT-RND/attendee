@@ -16,7 +16,7 @@ from django.urls import reverse
 from django.views import View
 from django.views.generic import ListView
 
-from accounts.models import User, UserRole
+from accounts.models import User, UserRole, user_can_manage_sensitive_integrations
 
 from .bots_api_utils import BotCreationSource, create_bot, create_webhook_subscription, guest_mom_page_absolute_url
 from .launch_bot_utils import launch_bot
@@ -216,6 +216,30 @@ class AdminRequiredMixin(LoginRequiredMixin):
         return super().dispatch(request, *args, **kwargs)
 
 
+class MeetingCreatorSensitiveIntegrationsDeniedMixin(LoginRequiredMixin):
+    """Block meeting_creator from credentials, webhooks, calendars, and related Google Meet / Zoom app settings."""
+
+    meeting_creator_denied_message = (
+        "Meeting creator accounts can create bots and app sessions, but cannot change credentials, "
+        "webhooks, or calendars. Ask an administrator."
+    )
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and getattr(request.user, "role", None) == UserRole.MEETING_CREATOR:
+            raise PermissionDenied(self.meeting_creator_denied_message)
+        return super().dispatch(request, *args, **kwargs)
+
+
+def _resolve_user_role_from_post(request) -> str:
+    """Invite/edit user forms: prefer user_role; fall back to legacy is_admin checkbox."""
+    raw = request.POST.get("user_role")
+    if raw in UserRole.values:
+        return raw
+    if request.POST.get("is_admin") == "true":
+        return UserRole.ADMIN
+    return UserRole.REGULAR_USER
+
+
 class ProjectUrlContextMixin:
     def get_project_context(self, object_id, project):
         return {
@@ -223,6 +247,7 @@ class ProjectUrlContextMixin:
             "charge_credits_for_bots_setting": settings.CHARGE_CREDITS_FOR_BOTS,
             "user_projects": Project.accessible_to(self.request.user),
             "UserRole": UserRole,
+            "user_can_manage_sensitive_integrations": user_can_manage_sensitive_integrations(self.request.user),
             "debug_mode": True if settings.DEBUG else False,
         }
 
@@ -300,7 +325,7 @@ class RedirectToDashboardView(LoginRequiredMixin, View):
         return redirect("bots:project-dashboard", object_id=object_id)
 
 
-class DeleteZoomOAuthAppView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+class DeleteZoomOAuthAppView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
     def post(self, request, object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
         zoom_oauth_app = ZoomOAuthApp.objects.filter(project=project).first()
@@ -311,7 +336,7 @@ class DeleteZoomOAuthAppView(LoginRequiredMixin, ProjectUrlContextMixin, View):
         return render(request, "projects/partials/zoom_oauth_app.html", context)
 
 
-class CreateZoomOAuthAppView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+class CreateZoomOAuthAppView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
     def post(self, request, object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
         zoom_oauth_app, error = create_or_update_zoom_oauth_app(
@@ -329,7 +354,7 @@ class CreateZoomOAuthAppView(LoginRequiredMixin, ProjectUrlContextMixin, View):
         return render(request, "projects/partials/zoom_oauth_app.html", context)
 
 
-class CreateCredentialsView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+class CreateCredentialsView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
     def post(self, request, object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
 
@@ -425,7 +450,7 @@ class CreateCredentialsView(LoginRequiredMixin, ProjectUrlContextMixin, View):
             return HttpResponse(str(e), status=400)
 
 
-class DeleteCredentialsView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+class DeleteCredentialsView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
     def post(self, request, object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
 
@@ -454,7 +479,7 @@ class DeleteCredentialsView(LoginRequiredMixin, ProjectUrlContextMixin, View):
             return HttpResponse(f"Error deleting credentials. Error ID: {error_id}", status=400)
 
 
-class ProjectCredentialsView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+class ProjectCredentialsView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
     def get(self, request, object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
 
@@ -665,7 +690,7 @@ class ProjectBotsView(LoginRequiredMixin, ProjectUrlContextMixin, ListView):
         return context
 
 
-class ProjectCalendarsView(LoginRequiredMixin, ProjectUrlContextMixin, ListView):
+class ProjectCalendarsView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, ListView):
     template_name = "projects/project_calendars.html"
     context_object_name = "calendars"
     paginate_by = 20
@@ -737,7 +762,7 @@ class ProjectCalendarsView(LoginRequiredMixin, ProjectUrlContextMixin, ListView)
         return context
 
 
-class ProjectCalendarDetailView(LoginRequiredMixin, ProjectUrlContextMixin, ListView):
+class ProjectCalendarDetailView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, ListView):
     template_name = "projects/project_calendar_detail.html"
     context_object_name = "calendar_events"
     paginate_by = 20
@@ -794,7 +819,7 @@ class ProjectCalendarDetailView(LoginRequiredMixin, ProjectUrlContextMixin, List
         return context
 
 
-class ProjectCalendarEventDetailView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+class ProjectCalendarEventDetailView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
     def get(self, request, object_id, calendar_object_id, event_object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
 
@@ -1150,7 +1175,7 @@ class ProjectBotRecordingsView(LoginRequiredMixin, ProjectUrlContextMixin, View)
         return render(request, "projects/partials/project_bot_recordings.html", context)
 
 
-class ProjectWebhooksView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+class ProjectWebhooksView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
     def get(self, request, object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
 
@@ -1191,7 +1216,7 @@ class ProjectTeamView(AdminRequiredMixin, ProjectUrlContextMixin, View):
 class EditUserView(AdminRequiredMixin, ProjectUrlContextMixin, View):
     def post(self, request, object_id):
         user_object_id = request.POST.get("user_object_id")
-        is_admin = request.POST.get("is_admin") == "true"
+        user_role = _resolve_user_role_from_post(request)
         is_active = request.POST.get("is_active") == "true"
         selected_project_ids = request.POST.getlist("project_access")
 
@@ -1205,12 +1230,12 @@ class EditUserView(AdminRequiredMixin, ProjectUrlContextMixin, View):
         if user_to_edit.id == request.user.id:
             return HttpResponse("You cannot edit your own account", status=400)
 
-        # Validate project selection for regular users
-        if not is_admin and not selected_project_ids:
-            return HttpResponse("Please select at least one project for regular users", status=400)
+        # Validate project selection for non-admin roles
+        if user_role != UserRole.ADMIN and not selected_project_ids:
+            return HttpResponse("Please select at least one project for non-administrator users", status=400)
 
         # Validate that selected projects exist and belong to the organization
-        if not is_admin and selected_project_ids:
+        if user_role != UserRole.ADMIN and selected_project_ids:
             valid_projects = Project.objects.filter(object_id__in=selected_project_ids, organization=request.user.organization)
             if len(valid_projects) != len(selected_project_ids):
                 return HttpResponse("Invalid project selection", status=400)
@@ -1218,7 +1243,6 @@ class EditUserView(AdminRequiredMixin, ProjectUrlContextMixin, View):
         try:
             with transaction.atomic():
                 # Update user role
-                user_role = UserRole.ADMIN if is_admin else UserRole.REGULAR_USER
                 user_to_edit.role = user_role
 
                 # Update user active status
@@ -1226,8 +1250,8 @@ class EditUserView(AdminRequiredMixin, ProjectUrlContextMixin, View):
 
                 user_to_edit.save()
 
-                # Update project access for regular users
-                if not is_admin:
+                # Update project access for non-admin roles
+                if user_role != UserRole.ADMIN:
                     # Remove all existing project access
                     ProjectAccess.objects.filter(user=user_to_edit).delete()
 
@@ -1242,7 +1266,12 @@ class EditUserView(AdminRequiredMixin, ProjectUrlContextMixin, View):
 
                 # Return success response
                 status_text = "active" if is_active else "disabled"
-                role_text = "administrator" if is_admin else "regular user"
+                role_labels = {
+                    UserRole.ADMIN: "administrator",
+                    UserRole.REGULAR_USER: "regular user",
+                    UserRole.MEETING_CREATOR: "meeting creator",
+                }
+                role_text = role_labels[user_role]
                 return HttpResponse(f"User {user_to_edit.email} has been updated successfully. Role: {role_text}, Status: {status_text}.", status=200)
 
         except Exception as e:
@@ -1259,7 +1288,7 @@ class InviteUserView(AdminRequiredMixin, ProjectUrlContextMixin, View):
     def post(self, request, object_id):
         get_project_for_user(user=request.user, project_object_id=object_id)
         email = request.POST.get("email")
-        is_admin = request.POST.get("is_admin") == "true"
+        user_role = _resolve_user_role_from_post(request)
         selected_project_ids = request.POST.getlist("project_access")
 
         if not email:
@@ -1269,12 +1298,12 @@ class InviteUserView(AdminRequiredMixin, ProjectUrlContextMixin, View):
         if User.objects.filter(email=email).exists():
             return HttpResponse("A user with this email already exists", status=400)
 
-        # Validate project selection for regular users
-        if not is_admin and not selected_project_ids:
-            return HttpResponse("Please select at least one project for regular users", status=400)
+        # Validate project selection for non-admin roles
+        if user_role != UserRole.ADMIN and not selected_project_ids:
+            return HttpResponse("Please select at least one project for non-administrator users", status=400)
 
         # Validate that selected projects exist and belong to the organization
-        if not is_admin and selected_project_ids:
+        if user_role != UserRole.ADMIN and selected_project_ids:
             valid_projects = Project.objects.filter(object_id__in=selected_project_ids, organization=request.user.organization)
             if len(valid_projects) != len(selected_project_ids):
                 return HttpResponse("Invalid project selection", status=400)
@@ -1282,7 +1311,6 @@ class InviteUserView(AdminRequiredMixin, ProjectUrlContextMixin, View):
         try:
             with transaction.atomic():
                 # Create the user with appropriate role
-                user_role = UserRole.ADMIN if is_admin else UserRole.REGULAR_USER
                 user = User.objects.create_user(
                     email=email,
                     username=str(uuid.uuid4()),
@@ -1292,8 +1320,8 @@ class InviteUserView(AdminRequiredMixin, ProjectUrlContextMixin, View):
                     role=user_role,
                 )
 
-                # Create project access entries for regular users
-                if not is_admin and selected_project_ids:
+                # Create project access entries for non-admin roles
+                if user_role != UserRole.ADMIN and selected_project_ids:
                     for project_id in selected_project_ids:
                         project = Project.objects.get(object_id=project_id, organization=request.user.organization)
                         ProjectAccess.objects.create(project=project, user=user)
@@ -1309,7 +1337,7 @@ class InviteUserView(AdminRequiredMixin, ProjectUrlContextMixin, View):
             return HttpResponse("An error occurred while sending the invitation", status=500)
 
 
-class CreateWebhookView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+class CreateWebhookView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
     def post(self, request, object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
         url = request.POST.get("url")
@@ -1335,7 +1363,7 @@ class CreateWebhookView(LoginRequiredMixin, ProjectUrlContextMixin, View):
         )
 
 
-class DeleteWebhookView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+class DeleteWebhookView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
     def delete(self, request, object_id, webhook_object_id):
         webhook = get_webhook_subscription_for_user(user=request.user, webhook_subscription_object_id=webhook_object_id)
         webhook.delete()
@@ -1346,7 +1374,7 @@ class DeleteWebhookView(LoginRequiredMixin, ProjectUrlContextMixin, View):
         return render(request, "projects/project_webhooks.html", context)
 
 
-class ResendWebhookDeliveryAttemptView(LoginRequiredMixin, View):
+class ResendWebhookDeliveryAttemptView(MeetingCreatorSensitiveIntegrationsDeniedMixin, View):
     def post(self, request, object_id, idempotency_key):
         # Verify user has access to this project
         get_project_for_user(user=request.user, project_object_id=object_id)
@@ -1646,7 +1674,7 @@ class ProjectAutopayView(AdminRequiredMixin, View):
             return HttpResponse("Error saving autopay settings", status=500)
 
 
-class CreateGoogleMeetBotLoginView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+class CreateGoogleMeetBotLoginView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
     def post(self, request, object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
 
@@ -1688,7 +1716,7 @@ class CreateGoogleMeetBotLoginView(LoginRequiredMixin, ProjectUrlContextMixin, V
             return HttpResponse(f"Error creating Google Meet bot login. Error ID: {error_id}", status=400)
 
 
-class DeleteGoogleMeetBotLoginView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+class DeleteGoogleMeetBotLoginView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
     def post(self, request, object_id, login_object_id):
         google_meet_bot_login = get_google_meet_bot_login_for_user(user=request.user, google_meet_bot_login_object_id=login_object_id)
         project = get_project_for_user(user=request.user, project_object_id=object_id)

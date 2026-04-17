@@ -45,6 +45,14 @@ class Organization(models.Model):
 class UserRole(models.TextChoices):
     ADMIN = "admin"
     REGULAR_USER = "regular_user"
+    MEETING_CREATOR = "meeting_creator"
+
+
+def user_can_manage_sensitive_integrations(user) -> bool:
+    """Credentials, webhooks, calendars, Google Meet logins — not meeting creators (bots/sessions/API keys only)."""
+    if not user.is_authenticated:
+        return False
+    return getattr(user, "role", None) != UserRole.MEETING_CREATOR
 
 
 class User(AbstractUser):

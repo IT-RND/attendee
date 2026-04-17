@@ -47,6 +47,14 @@ class ObjectAccessIntegrationTest(TransactionTestCase):
 
         self.regular_user_a2 = User.objects.create_user(username="regular_a2", email="regular_a2@example.com", password="testpassword123", role=UserRole.REGULAR_USER, organization=self.organization_a)
 
+        self.meeting_creator_a = User.objects.create_user(
+            username="meeting_a",
+            email="meeting_a@example.com",
+            password="testpassword123",
+            role=UserRole.MEETING_CREATOR,
+            organization=self.organization_a,
+        )
+
         # Create users in Organization B
         self.admin_user_b = User.objects.create_user(username="admin_b", email="admin_b@example.com", password="testpassword123", role=UserRole.ADMIN, organization=self.organization_b)
 
@@ -62,6 +70,8 @@ class ObjectAccessIntegrationTest(TransactionTestCase):
 
         # Give regular_user_a access to project_a1 only
         ProjectAccess.objects.create(project=self.project_a1, user=self.regular_user_a)
+
+        ProjectAccess.objects.create(project=self.project_a1, user=self.meeting_creator_a)
 
         # Give regular_user_b access to project_b1
         ProjectAccess.objects.create(project=self.project_b1, user=self.regular_user_b)
@@ -392,6 +402,25 @@ class ObjectAccessIntegrationTest(TransactionTestCase):
         response = self.client.get(reverse("bots:project-calendars", kwargs={"object_id": self.project_a2.object_id}))
         self.assertEqual(response.status_code, 403)
 
+        # Meeting creator cannot use calendars UI even with project access
+        self.client.force_login(self.meeting_creator_a)
+        response = self.client.get(reverse("bots:project-calendars", kwargs={"object_id": self.project_a1.object_id}))
+        self.assertEqual(response.status_code, 403)
+
+    def test_meeting_creator_can_use_bots_and_api_keys(self):
+        self.client.force_login(self.meeting_creator_a)
+        response = self.client.get(reverse("bots:project-bots", kwargs={"object_id": self.project_a1.object_id}))
+        self.assertEqual(response.status_code, 200)
+        response = self.client.get(reverse("bots:project-api-keys", kwargs={"object_id": self.project_a1.object_id}))
+        self.assertEqual(response.status_code, 200)
+
+    def test_meeting_creator_credentials_and_webhooks_forbidden(self):
+        self.client.force_login(self.meeting_creator_a)
+        response = self.client.get(reverse("bots:project-credentials", kwargs={"object_id": self.project_a1.object_id}))
+        self.assertEqual(response.status_code, 403)
+        response = self.client.get(reverse("bots:project-webhooks", kwargs={"object_id": self.project_a1.object_id}))
+        self.assertEqual(response.status_code, 403)
+
     def test_bot_detail_access_control(self):
         """Test that bot detail view access is properly controlled"""
         # Admin can access any bot in their org
@@ -429,6 +458,10 @@ class ObjectAccessIntegrationTest(TransactionTestCase):
         # Regular user cannot access calendars in projects they don't have access to
         response = self.client.get(reverse("bots:project-calendar-detail", kwargs={"object_id": self.project_a2.object_id, "calendar_object_id": self.calendar_a2.object_id}))
         self.assertEqual(response.status_code, 302)  # Redirects to project calendars
+
+        self.client.force_login(self.meeting_creator_a)
+        response = self.client.get(reverse("bots:project-calendar-detail", kwargs={"object_id": self.project_a1.object_id, "calendar_object_id": self.calendar_a1.object_id}))
+        self.assertEqual(response.status_code, 403)
 
     def test_calendar_event_detail_access_control(self):
         """Test that calendar event detail view access is properly controlled"""

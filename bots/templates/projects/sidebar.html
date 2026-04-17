@@ -70,6 +70,7 @@
                         <i class="bi bi-book"></i> Docs
                     </a>
                     
+                    {% if user_can_manage_sensitive_integrations %}
                     <!-- Settings dropdown menu -->
                     <div class="settings-dropdown">
                         <a class="nav-link" href="#" 
@@ -114,6 +115,7 @@
                             {% endif %}
                         </div>
                     </div>
+                    {% endif %}
                     {% if project.organization.is_app_sessions_enabled %}
                     <hr>
                     {% endif %}
@@ -128,6 +130,7 @@
                         <i class="bi bi-robot"></i> Bots
                     </a>
 
+                    {% if user_can_manage_sensitive_integrations %}
                     <a class="nav-link" 
                        hx-get="{% url 'projects:project-calendars' project.object_id %}" 
                        hx-select="#content"
@@ -137,6 +140,7 @@
                        onclick="setActiveLink(this)">
                         <i class="bi bi-calendar3"></i> Calendars
                     </a>
+                    {% endif %}
 
                     {% if project.organization.is_app_sessions_enabled %}
                     <a class="nav-link" 
@@ -211,7 +215,11 @@
         <div class="col-md-9 col-lg-10 py-3">
             {% if project.organization.credits < 0 %}
             <div class="alert alert-danger mb-3" role="alert">
+                {% if user_can_manage_sensitive_integrations %}
                 <strong>Your account has a negative credit balance.</strong> Please <a href="{% url 'projects:project-billing' project.object_id %}" class="alert-link">top up your credits</a> to continue creating bots.
+                {% else %}
+                <strong>Your account has a negative credit balance.</strong> Please ask an account administrator to add credits so you can continue creating bots.
+                {% endif %}
             </div>
             {% endif %}
             <div id="content">

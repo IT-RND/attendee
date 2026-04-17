@@ -47,8 +47,10 @@
                   <td>
                     {% if user.role == 'admin' %}
                       <span class="badge bg-primary">Administrator</span>
+                    {% elif user.role == 'meeting_creator' %}
+                      <span class="badge bg-info text-dark">Meeting creator</span>
                     {% else %}
-                      <span class="badge bg-secondary">Regular User</span>
+                      <span class="badge bg-secondary">Regular user</span>
                     {% endif %}
                   </td>
                   <td>
@@ -56,7 +58,7 @@
                       <span>-</span>
                     {% elif user.role == 'admin' %}
                       <span>-</span>
-                    {% else %}
+                    {% elif user.role == 'meeting_creator' or user.role == 'regular_user' %}
                       {% for access in user.project_accesses.all %}
                         <span class="badge bg-light text-dark">{{ access.project.name }}</span>
                       {% endfor %}
@@ -118,14 +120,20 @@
           </div>
           
           <div class="mb-3">
-            <label class="form-label">User Role</label>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="roleToggle" name="is_admin" value="true">
-              <label class="form-check-label" for="roleToggle">
-                <span id="roleLabel">Regular User</span>
-              </label>
+            <label class="form-label">User role</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="user_role" id="inviteRoleRegular" value="regular_user" checked>
+              <label class="form-check-label" for="inviteRoleRegular">Regular user — credentials, webhooks, calendars, and API keys</label>
             </div>
-            <div class="form-text" id="roleDescription">This user will have access only to selected projects.</div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="user_role" id="inviteRoleMeeting" value="meeting_creator">
+              <label class="form-check-label" for="inviteRoleMeeting">Meeting creator — create bots and app sessions; API keys only (no credentials or webhooks)</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="user_role" id="inviteRoleAdmin" value="admin">
+              <label class="form-check-label" for="inviteRoleAdmin">Administrator — all projects, billing, and team</label>
+            </div>
+            <div class="form-text" id="roleDescription">Non-admin roles must be assigned to at least one project.</div>
           </div>
 
           <div id="projectAccessSection" class="mb-3">
@@ -179,14 +187,20 @@
           </div>
           
           <div class="mb-3">
-            <label class="form-label">User Role</label>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="editRoleToggle" name="is_admin" value="true">
-              <label class="form-check-label" for="editRoleToggle">
-                <span id="editRoleLabel">Regular User</span>
-              </label>
+            <label class="form-label">User role</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="user_role" id="editRoleRegular" value="regular_user">
+              <label class="form-check-label" for="editRoleRegular">Regular user — credentials, webhooks, calendars, and API keys</label>
             </div>
-            <div class="form-text" id="editRoleDescription">This user will have access only to selected projects.</div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="user_role" id="editRoleMeeting" value="meeting_creator">
+              <label class="form-check-label" for="editRoleMeeting">Meeting creator — create bots and app sessions; API keys only</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="user_role" id="editRoleAdmin" value="admin">
+              <label class="form-check-label" for="editRoleAdmin">Administrator</label>
+            </div>
+            <div class="form-text" id="editRoleDescription">Non-admin roles must be assigned to at least one project.</div>
           </div>
 
           <div id="editProjectAccessSection" class="mb-3">
@@ -233,50 +247,47 @@
     const inviteError = document.getElementById('inviteError');
     const successAlert = document.getElementById('successAlert');
     const errorAlert = document.getElementById('errorAlert');
-    const roleToggle = document.getElementById('roleToggle');
-    const roleLabel = document.getElementById('roleLabel');
     const roleDescription = document.getElementById('roleDescription');
     const projectAccessSection = document.getElementById('projectAccessSection');
     const projectCheckboxes = document.querySelectorAll('.project-checkbox');
     const projectSelectionError = document.getElementById('projectSelectionError');
-    
+    const inviteRoleRadios = () => inviteForm.querySelectorAll('input[name="user_role"]');
+
+    function getInviteSelectedRole() {
+        const selected = inviteForm.querySelector('input[name="user_role"]:checked');
+        return selected ? selected.value : 'regular_user';
+    }
+
     function updateRoleUI() {
-        if (roleToggle.checked) {
-            // Admin role selected
-            roleLabel.textContent = 'Administrator';
-            roleDescription.textContent = 'This user will be able to create projects, purchase credits, invite teammates and have access to all projects in your account.';
+        const role = getInviteSelectedRole();
+        if (role === 'admin') {
+            roleDescription.textContent = 'Administrators have access to every project, billing, and team settings.';
             projectAccessSection.style.display = 'none';
             projectSelectionError.classList.add('d-none');
-            // Clear all project selections
-            projectCheckboxes.forEach(checkbox => checkbox.checked = false);
+            projectCheckboxes.forEach(checkbox => { checkbox.checked = false; });
         } else {
-            // Regular user selected
-            roleLabel.textContent = 'Regular User';
-            roleDescription.textContent = 'This user will have access only to selected projects.';
+            roleDescription.textContent = 'Select at least one project this user can open in the dashboard.';
             projectAccessSection.style.display = 'block';
         }
     }
-    
+
     function validateProjectSelection() {
-        if (!roleToggle.checked) {
-            // Only validate for regular users
-            const hasSelectedProject = Array.from(projectCheckboxes).some(checkbox => checkbox.checked);
-            if (!hasSelectedProject) {
-                projectSelectionError.classList.remove('d-none');
-                return false;
-            } else {
-                projectSelectionError.classList.add('d-none');
-                return true;
-            }
+        if (getInviteSelectedRole() === 'admin') {
+            return true;
         }
+        const hasSelectedProject = Array.from(projectCheckboxes).some(checkbox => checkbox.checked);
+        if (!hasSelectedProject) {
+            projectSelectionError.classList.remove('d-none');
+            return false;
+        }
+        projectSelectionError.classList.add('d-none');
         return true;
     }
-    
+
     // Initialize role UI
     updateRoleUI();
-    
-    // Handle role toggle changes
-    roleToggle.addEventListener('change', updateRoleUI);
+
+    inviteRoleRadios().forEach(r => r.addEventListener('change', updateRoleUI));
     
     // Handle project selection changes for validation
     projectCheckboxes.forEach(checkbox => {
@@ -393,8 +404,6 @@
         const editError = document.getElementById('editError');
         const successAlert = document.getElementById('successAlert');
         const errorAlert = document.getElementById('errorAlert');
-        const editRoleToggle = document.getElementById('editRoleToggle');
-        const editRoleLabel = document.getElementById('editRoleLabel');
         const editRoleDescription = document.getElementById('editRoleDescription');
         const editProjectAccessSection = document.getElementById('editProjectAccessSection');
         const editProjectCheckboxes = document.querySelectorAll('.edit-project-checkbox');
@@ -403,22 +412,23 @@
         const editActiveButtonText = document.getElementById('editActiveButtonText');
         const editActiveSpinner = editActiveBtn.querySelector('.spinner-border');
         const editUserActiveInput = document.getElementById('editUserActiveInput');
-        
+
         let currentUserActive = false; // Track current user active status
-        
+
+        function getEditSelectedRole() {
+            const selected = editForm.querySelector('input[name="user_role"]:checked');
+            return selected ? selected.value : 'regular_user';
+        }
+
         function updateEditRoleUI() {
-            if (editRoleToggle.checked) {
-                // Admin role selected
-                editRoleLabel.textContent = 'Administrator';
-                editRoleDescription.textContent = 'This user will be able to create projects, purchase credits, invite teammates and have access to all projects in your account.';
+            const role = getEditSelectedRole();
+            if (role === 'admin') {
+                editRoleDescription.textContent = 'Administrators have access to every project, billing, and team settings.';
                 editProjectAccessSection.style.display = 'none';
                 editProjectSelectionError.classList.add('d-none');
-                // Clear all project selections
-                editProjectCheckboxes.forEach(checkbox => checkbox.checked = false);
+                editProjectCheckboxes.forEach(checkbox => { checkbox.checked = false; });
             } else {
-                // Regular user selected
-                editRoleLabel.textContent = 'Regular User';
-                editRoleDescription.textContent = 'This user will have access only to selected projects.';
+                editRoleDescription.textContent = 'Select at least one project this user can open in the dashboard.';
                 editProjectAccessSection.style.display = 'block';
             }
         }
@@ -434,22 +444,19 @@
         }
         
         function validateEditProjectSelection() {
-            if (!editRoleToggle.checked) {
-                // Only validate for regular users
-                const hasSelectedProject = Array.from(editProjectCheckboxes).some(checkbox => checkbox.checked);
-                if (!hasSelectedProject) {
-                    editProjectSelectionError.classList.remove('d-none');
-                    return false;
-                } else {
-                    editProjectSelectionError.classList.add('d-none');
-                    return true;
-                }
+            if (getEditSelectedRole() === 'admin') {
+                return true;
             }
+            const hasSelectedProject = Array.from(editProjectCheckboxes).some(checkbox => checkbox.checked);
+            if (!hasSelectedProject) {
+                editProjectSelectionError.classList.remove('d-none');
+                return false;
+            }
+            editProjectSelectionError.classList.add('d-none');
             return true;
         }
-        
-        // Handle role toggle changes
-        editRoleToggle.addEventListener('change', updateEditRoleUI);
+
+        editForm.querySelectorAll('input[name="user_role"]').forEach(r => r.addEventListener('change', updateEditRoleUI));
         
         // Handle project selection changes for validation
         editProjectCheckboxes.forEach(checkbox => {
@@ -491,7 +498,7 @@
             hideEditInlineError();
             
             // Validate project selection if changing to active and user is not admin
-            if (!currentUserActive && !editRoleToggle.checked && !validateEditProjectSelection()) {
+            if (!currentUserActive && getEditSelectedRole() !== 'admin' && !validateEditProjectSelection()) {
                 return;
             }
             
@@ -553,7 +560,9 @@
                 // Populate modal with user data
                 document.getElementById('editUserObjectId').value = userObjectId;
                 document.getElementById('editUserEmail').textContent = userEmail;
-                editRoleToggle.checked = userRole === 'admin';
+                editForm.querySelectorAll('input[name="user_role"]').forEach(r => {
+                    r.checked = r.value === userRole;
+                });
                 // Initialize hidden input with current active status
                 editUserActiveInput.value = userActive ? 'true' : 'false';
                 
