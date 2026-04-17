@@ -13,7 +13,7 @@ ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv(
         "ALLOWED_HOSTS",
-        "meeting-assistant.boga.co.id,.attendee.dev",
+        "meeting-assistant.boga.co.id,.attendee.dev,34.128.99.163",
     ).split(",")
     if host.strip()
 ]
