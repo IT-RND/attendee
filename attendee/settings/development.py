@@ -5,6 +5,7 @@ from .base import *
 DEBUG = True
 SITE_DOMAIN = "localhost:8000"
 ALLOWED_HOSTS = [
+    "meeting-assistant.boga.co.id",
     "tendee-stripe-hooks.ngrok.io",
     "localhost",
     "127.0.0.1",
