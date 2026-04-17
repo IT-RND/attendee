@@ -7,7 +7,16 @@ from .base import *
 from .base import LOG_FORMATTERS
 
 DEBUG = False
-ALLOWED_HOSTS = ["*"]
+# With DEBUG=False, '*' in ALLOWED_HOSTS matches nothing; use explicit hosts or a
+# leading-dot domain (e.g. '.example.com') for subdomains. Override via ALLOWED_HOSTS.
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv(
+        "ALLOWED_HOSTS",
+        "meeting-assistant.boga.co.id,.attendee.dev",
+    ).split(",")
+    if host.strip()
+]
 
 DATABASES = {
     "default": dj_database_url.config(

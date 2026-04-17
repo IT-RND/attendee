@@ -4,7 +4,7 @@ from .base import *
 
 DEBUG = True
 SITE_DOMAIN = "localhost:8000"
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['meeting-assistant.boga.co.id']
 
 DATABASES = {
     "default": {

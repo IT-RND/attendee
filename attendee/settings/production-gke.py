@@ -7,7 +7,16 @@ from .base import *
 from .base import LOG_FORMATTERS
 
 DEBUG = False
-ALLOWED_HOSTS = ["*"]
+# With DEBUG=False, '*' in ALLOWED_HOSTS matches nothing; use explicit hosts or a
+# leading-dot domain (e.g. '.example.com') for subdomains. Override via ALLOWED_HOSTS.
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv(
+        "ALLOWED_HOSTS",
+        "meeting-assistant.boga.co.id,.attendee.dev",
+    ).split(",")
+    if host.strip()
+]
 
 DATABASES = {
     "default": dj_database_url.config(
@@ -53,7 +62,14 @@ if os.getenv("ERROR_REPORTS_RECEIVER_EMAIL_ADDRESS"):
 SERVER_EMAIL = os.getenv("SERVER_EMAIL", "noreply@mail.attendee.dev")
 
 # Needed on GKE
-CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "https://*.attendee.dev").split(",")
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CSRF_TRUSTED_ORIGINS",
+        "https://*.attendee.dev,https://*.boga.co.id",
+    ).split(",")
+    if origin.strip()
+]
 
 LOGGING = {
     "version": 1,
