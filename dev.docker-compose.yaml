@@ -10,9 +10,7 @@ services:
       - REDIS_URL=redis://redis:6379/5
       - DJANGO_SETTINGS_MODULE=attendee.settings.development
       - ENABLE_CHROME_SANDBOX=false
-    command: "celery -A attendee worker -l INFO --concurrency=2"
-    mem_limit: 1g
-    cpus: 1.2
+    command: "celery -A attendee worker -l INFO"
 
   attendee-scheduler-local:
     build: ./
@@ -26,8 +24,6 @@ services:
       - DJANGO_SETTINGS_MODULE=attendee.settings.development
     command: "python manage.py run_scheduler"
     entrypoint: []
-    mem_limit: 256m
-    cpus: 0.3
 
   attendee-app-local:
     build: ./
@@ -41,10 +37,11 @@ services:
       - POSTGRES_HOST=postgres
       - REDIS_URL=redis://redis:6379/5
       - DJANGO_SETTINGS_MODULE=attendee.settings.development
+      # HTTPS hostname in browser but HTTP to the container (tunnel / edge TLS):
+      # - USE_FORWARDED_HTTPS=true
+      # - CSRF_TRUSTED_ORIGINS=https://meeting-assistant.boga.co.id
     command: python manage.py runserver 0.0.0.0:8000
     entrypoint: []
-    mem_limit: 512m
-    cpus: 1.0
 
   attendee-webpage-streamer-local:
     build: ./
@@ -62,8 +59,7 @@ services:
       - seccomp=./bots/web_bot_adapter/chrome_seccomp.json
     profiles:
       - webpage-streamer
-    mem_limit: 2g
-    cpus: 1.2
+
 
   postgres:
     image: postgres:15.3-alpine
@@ -77,8 +73,7 @@ services:
     networks:
       - attendee_network
     restart: unless-stopped
-    mem_limit: 1g
-    cpus: 0.5
+
 
   redis:
     image: redis:7-alpine
@@ -87,8 +82,6 @@ services:
     restart: unless-stopped
     volumes:
       - redis:/data/redis
-    mem_limit: 256m
-    cpus: 0.3
 
 networks:
   attendee_network:
