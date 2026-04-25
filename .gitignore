@@ -95,6 +95,7 @@ __pycache__/
 local_settings.py
 
 .env
+client_secret_*.json
 db.sqlite3
 34.128.99.163
 custom/

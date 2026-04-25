@@ -7,6 +7,11 @@ app_name = "bots"
 
 urlpatterns = [
     path(
+        "calendars/google/callback",
+        projects_views.GoogleCalendarOAuthCallbackView.as_view(),
+        name="project-google-calendar-oauth-callback",
+    ),
+    path(
         "create/",
         projects_views.CreateProjectView.as_view(),
         name="create-project",
@@ -220,6 +225,11 @@ urlpatterns = [
         "<str:object_id>/calendars",
         projects_views.ProjectCalendarsView.as_view(),
         name="project-calendars",
+    ),
+    path(
+        "<str:object_id>/calendars/google/connect",
+        projects_views.StartGoogleCalendarOAuthView.as_view(),
+        name="project-google-calendar-oauth-start",
     ),
     path(
         "<str:object_id>/calendars/<str:calendar_object_id>",

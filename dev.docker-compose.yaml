@@ -10,6 +10,10 @@ services:
       - REDIS_URL=redis://redis:6379/5
       - DJANGO_SETTINGS_MODULE=attendee.settings.development
       - ENABLE_CHROME_SANDBOX=false
+      - SITE_DOMAIN=${SITE_DOMAIN:-localhost:8000}
+      - EXTERNAL_WEBHOOK_SITE_DOMAIN=${EXTERNAL_WEBHOOK_SITE_DOMAIN:-}
+      - GOOGLE_CALENDAR_OAUTH_CLIENT_ID=${GOOGLE_CALENDAR_OAUTH_CLIENT_ID:-}
+      - GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET=${GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET:-}
     command: "celery -A attendee worker -l INFO"
 
   attendee-scheduler-local:
@@ -24,6 +28,10 @@ services:
       - DJANGO_SETTINGS_MODULE=attendee.settings.development
       - USE_FORWARDED_HTTPS=true
       - CSRF_TRUSTED_ORIGINS=https://meeting-assistant.boga.co.id
+      - SITE_DOMAIN=${SITE_DOMAIN:-localhost:8000}
+      - EXTERNAL_WEBHOOK_SITE_DOMAIN=${EXTERNAL_WEBHOOK_SITE_DOMAIN:-}
+      - GOOGLE_CALENDAR_OAUTH_CLIENT_ID=${GOOGLE_CALENDAR_OAUTH_CLIENT_ID:-}
+      - GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET=${GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET:-}
     command: "python manage.py run_scheduler"
     entrypoint: []
 
@@ -41,6 +49,10 @@ services:
       - DJANGO_SETTINGS_MODULE=attendee.settings.development
       - USE_FORWARDED_HTTPS=true
       - CSRF_TRUSTED_ORIGINS=https://meeting-assistant.boga.co.id
+      - SITE_DOMAIN=${SITE_DOMAIN:-localhost:8000}
+      - EXTERNAL_WEBHOOK_SITE_DOMAIN=${EXTERNAL_WEBHOOK_SITE_DOMAIN:-}
+      - GOOGLE_CALENDAR_OAUTH_CLIENT_ID=${GOOGLE_CALENDAR_OAUTH_CLIENT_ID:-}
+      - GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET=${GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET:-}
     command: python manage.py runserver 0.0.0.0:8000
     entrypoint: []
 

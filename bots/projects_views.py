@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import uuid
+from urllib.parse import urlencode
 
 import stripe
 from allauth.account.utils import send_email_confirmation
@@ -19,6 +20,13 @@ from django.views.generic import ListView
 from accounts.models import User, UserRole, user_can_manage_sensitive_integrations
 
 from .bots_api_utils import BotCreationSource, create_bot, create_webhook_subscription, guest_mom_page_absolute_url
+from .google_calendar_oauth import (
+    GoogleCalendarOAuthError,
+    build_google_calendar_oauth_authorize_url,
+    connect_google_calendar,
+    get_project_object_id_from_state,
+    google_calendar_oauth_is_configured,
+)
 from .launch_bot_utils import launch_bot
 from .meeting_summary_guest_utils import (
     assert_guest_url_matches_session_type,
@@ -352,6 +360,50 @@ class CreateZoomOAuthAppView(MeetingCreatorSensitiveIntegrationsDeniedMixin, Pro
         context = self.get_project_context(object_id, project)
         context["zoom_oauth_app"] = zoom_oauth_app
         return render(request, "projects/partials/zoom_oauth_app.html", context)
+
+
+class StartGoogleCalendarOAuthView(MeetingCreatorSensitiveIntegrationsDeniedMixin, View):
+    def get(self, request, object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+
+        if not google_calendar_oauth_is_configured():
+            return redirect(
+                f"{reverse('projects:project-calendars', kwargs={'object_id': project.object_id})}?{urlencode({'google_calendar_error': 'Google Calendar OAuth is not configured yet. Set GOOGLE_CALENDAR_OAUTH_CLIENT_ID and GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET first.'})}"
+            )
+
+        return redirect(build_google_calendar_oauth_authorize_url(project))
+
+
+class GoogleCalendarOAuthCallbackView(MeetingCreatorSensitiveIntegrationsDeniedMixin, View):
+    def get(self, request):
+        state = request.GET.get("state")
+        if not state:
+            return HttpResponse("Missing Google Calendar OAuth state.", status=400)
+
+        try:
+            project_object_id = get_project_object_id_from_state(state)
+            project = get_project_for_user(user=request.user, project_object_id=project_object_id)
+        except GoogleCalendarOAuthError as exc:
+            return HttpResponse(str(exc), status=400)
+
+        calendars_url = reverse("projects:project-calendars", kwargs={"object_id": project.object_id})
+
+        google_error = request.GET.get("error")
+        if google_error:
+            error_description = request.GET.get("error_description") or google_error.replace("_", " ")
+            return redirect(f"{calendars_url}?{urlencode({'google_calendar_error': error_description})}")
+
+        authorization_code = request.GET.get("code")
+        if not authorization_code:
+            return redirect(f"{calendars_url}?{urlencode({'google_calendar_error': 'Google did not return an authorization code.'})}")
+
+        try:
+            calendar = connect_google_calendar(project=project, authorization_code=authorization_code)
+        except GoogleCalendarOAuthError as exc:
+            return redirect(f"{calendars_url}?{urlencode({'google_calendar_error': str(exc)})}")
+
+        success_message = f"Connected Google Calendar for {calendar.deduplication_key}."
+        return redirect(f"{calendars_url}?{urlencode({'google_calendar_success': success_message})}")
 
 
 class CreateCredentialsView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
@@ -745,11 +797,18 @@ class ProjectCalendarsView(MeetingCreatorSensitiveIntegrationsDeniedMixin, Proje
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         project = get_project_for_user(user=self.request.user, project_object_id=self.kwargs["object_id"])
+        public_site_domain = os.getenv("EXTERNAL_WEBHOOK_SITE_DOMAIN") or settings.SITE_DOMAIN
         context.update(self.get_project_context(self.kwargs["object_id"], project))
 
         # Add CalendarStates and CalendarPlatform for the template
         context["CalendarStates"] = CalendarStates
         context["CalendarPlatform"] = CalendarPlatform
+        context["google_calendar_oauth_enabled"] = google_calendar_oauth_is_configured()
+        context["google_calendar_success"] = self.request.GET.get("google_calendar_success")
+        context["google_calendar_error"] = self.request.GET.get("google_calendar_error")
+        context["google_calendar_public_domain"] = public_site_domain
+        context["google_calendar_public_domain_is_local"] = public_site_domain.startswith("localhost")
+        context["google_calendar_host_mismatch"] = public_site_domain != self.request.get_host()
 
         # Add filter parameters to context for maintaining state
         context["filter_params"] = {
