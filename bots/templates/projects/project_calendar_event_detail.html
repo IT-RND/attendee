@@ -63,10 +63,17 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="mb-0">Calendar Event Details</h2>
-        <a href="{% url 'bots:project-calendar-detail' project.object_id calendar.object_id %}" 
-           class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Calendar
-        </a>
+        <div class="d-flex gap-2">
+            {% if primary_session_bot %}
+                <a href="{{ primary_session_bot.session_detail_url }}" class="btn btn-primary">
+                    <i class="bi bi-camera-video me-1"></i> Open Session Details
+                </a>
+            {% endif %}
+            <a href="{% url 'bots:project-calendar-detail' project.object_id calendar.object_id %}" 
+               class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Calendar
+            </a>
+        </div>
     </div>
 
     <div class="row mb-4">
@@ -135,7 +142,7 @@
                         <div class="col-md-3 mb-2">
                             <div class="d-flex justify-content-between align-items-center p-2 border rounded">
                                 <div>
-                                    <a href="{% url 'bots:project-bot-detail' project.object_id bot.object_id %}" class="text-decoration-none">
+                                    <a href="{{ bot.session_detail_url }}" class="text-decoration-none">
                                         {{ bot.object_id }}
                                     </a>
                                 </div>

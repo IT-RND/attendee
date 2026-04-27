@@ -1,4 +1,6 @@
 import json
+import zipfile
+from io import BytesIO
 from unittest.mock import Mock, patch
 
 from django.test import Client, TestCase
@@ -350,6 +352,31 @@ class SaveMeetingSummaryViewTest(MeetingSummaryFileFieldMixin, TestCase):
         self.assertEqual(response.url, "https://example.com/existing-summary.pdf")
         mock_remote_storage_url.assert_called_once_with(self.bot.meeting_summary_pdf)
 
+    def test_download_summary_docx_returns_generated_docx(self):
+        self.bot.meeting_summary = """## Summary
+- Point 1
+
+## Tindak Lanjut
+| Tindak Lanjut | PIC | Target Waktu | Status |
+| --- | --- | --- | --- |
+| Cek export | Fariz | Hari ini | In Progress |
+"""
+        self.bot.save(update_fields=["meeting_summary"])
+
+        response = self.client.get(
+            reverse("projects:download-meeting-summary-docx", args=[self.project.object_id, self.bot.object_id])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        self.assertIn(".docx", response["Content-Disposition"])
+
+        with zipfile.ZipFile(BytesIO(response.content)) as archive:
+            document_xml = archive.read("word/document.xml").decode()
+
+        self.assertIn("Summary", document_xml)
+        self.assertIn("Cek export", document_xml)
+
     def test_summary_prompt_requires_tindak_lanjut_table(self):
         prompt = meeting_summary_utils._build_summary_prompt(self.bot, "Fariz: Tolong follow up besok.")
 
@@ -551,3 +578,26 @@ class GuestMomPageTest(TestCase):
         )
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
+
+    def test_guest_can_download_summary_docx_without_login(self):
+        self.bot.meeting_summary = "## Guest Summary\nTamu bisa mengunduh file ini."
+        self.bot.save(update_fields=["meeting_summary"])
+
+        response = self.client.get(
+            reverse(
+                "projects:guest-bot-mom-summary-docx",
+                kwargs={
+                    "object_id": self.project.object_id,
+                    "bot_object_id": self.bot.object_id,
+                    "mom_guest_token": self.bot.mom_guest_token,
+                },
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+        with zipfile.ZipFile(BytesIO(response.content)) as archive:
+            document_xml = archive.read("word/document.xml").decode()
+
+        self.assertIn("Guest Summary", document_xml)

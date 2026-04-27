@@ -153,7 +153,7 @@
                         <tbody>
                             {% for event in calendar_events %}
                                 <tr class="clickable-row"
-                                    hx-get="{% url 'bots:project-calendar-event-detail' project.object_id calendar.object_id event.object_id %}"
+                                    hx-get="{% if event.session_detail_url %}{{ event.session_detail_url }}{% else %}{% url 'bots:project-calendar-event-detail' project.object_id calendar.object_id event.object_id %}{% endif %}"
                                     hx-select="#content"
                                     hx-target="#content"
                                     hx-swap="outerHTML"
@@ -163,6 +163,9 @@
                                             {{ event.name }}
                                         {% else %}
                                             <em class="text-muted">Untitled Event</em>
+                                        {% endif %}
+                                        {% if event.linked_session_bot %}
+                                            <span class="badge bg-primary-subtle text-primary-emphasis ms-2">Open session</span>
                                         {% endif %}
                                     </td>
                                     <td>{{ event.start_time|date:"M d, Y H:i" }}</td>

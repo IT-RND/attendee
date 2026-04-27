@@ -41,6 +41,7 @@ from .meeting_summary_guest_utils import (
 )
 from .meeting_summary_utils import (
     MeetingSummaryError,
+    build_meeting_summary_docx,
     ensure_meeting_summary_pdf,
     generate_meeting_summary,
     generate_meeting_summary_stream,
@@ -187,6 +188,23 @@ def get_webhook_options_for_project(project):
     if not project.organization.is_async_transcription_enabled:
         trigger_types.remove(WebhookTriggerTypes.ASYNC_TRANSCRIPTION_STATE_CHANGE)
     return trigger_types
+
+
+def project_session_detail_url(project_object_id, bot):
+    route_name = "bots:project-app-session-detail" if bot.session_type == SessionTypes.APP_SESSION else "bots:project-bot-detail"
+    return reverse(route_name, kwargs={"object_id": project_object_id, "bot_object_id": bot.object_id})
+
+
+def _attach_calendar_event_session_links(calendar_events, project_object_id):
+    for calendar_event in calendar_events:
+        linked_bot = next(iter(calendar_event.bots.all()), None)
+        calendar_event.linked_session_bot = linked_bot
+        calendar_event.session_detail_url = project_session_detail_url(project_object_id, linked_bot) if linked_bot else None
+
+
+def _attach_bot_session_links(bots, project_object_id):
+    for bot in bots:
+        bot.session_detail_url = project_session_detail_url(project_object_id, bot)
 
 
 def get_partial_for_credential_type(credential_type, request, context):
@@ -851,7 +869,7 @@ class ProjectCalendarDetailView(MeetingCreatorSensitiveIntegrationsDeniedMixin, 
             return []
 
         # Get calendar events for this calendar, ordered by start time (most recent first)
-        return calendar.events.all().order_by("-start_time")
+        return calendar.events.prefetch_related(models.Prefetch("bots", queryset=Bot.objects.order_by("-created_at"))).order_by("-start_time")
 
     def get(self, request, object_id, calendar_object_id):
         # Check if calendar exists, if not redirect
@@ -884,6 +902,7 @@ class ProjectCalendarDetailView(MeetingCreatorSensitiveIntegrationsDeniedMixin, 
                 "WebhookDeliveryAttemptStatus": WebhookDeliveryAttemptStatus,
             }
         )
+        _attach_calendar_event_session_links(context["calendar_events"], self.kwargs["object_id"])
 
         return context
 
@@ -903,7 +922,8 @@ class ProjectCalendarEventDetailView(MeetingCreatorSensitiveIntegrationsDeniedMi
             return redirect("bots:project-calendar-detail", object_id=object_id, calendar_object_id=calendar_object_id)
 
         # Get any bots that were created for this calendar event
-        bots_for_event = Bot.objects.filter(calendar_event=calendar_event).order_by("-created_at")
+        bots_for_event = list(Bot.objects.filter(calendar_event=calendar_event).order_by("-created_at"))
+        _attach_bot_session_links(bots_for_event, object_id)
 
         context = self.get_project_context(object_id, project)
         context.update(
@@ -911,6 +931,7 @@ class ProjectCalendarEventDetailView(MeetingCreatorSensitiveIntegrationsDeniedMi
                 "calendar": calendar_event.calendar,
                 "calendar_event": calendar_event,
                 "bots_for_event": bots_for_event,
+                "primary_session_bot": bots_for_event[0] if bots_for_event else None,
                 "CalendarStates": CalendarStates,
                 "CalendarPlatform": CalendarPlatform,
                 "BotStates": BotStates,
@@ -1126,6 +1147,27 @@ class DownloadMeetingSummaryPdfView(LoginRequiredMixin, View):
         return redirect(remote_storage_url(bot.meeting_summary_pdf))
 
 
+def _meeting_summary_docx_download_response(bot):
+    summary = (bot.meeting_summary or "").strip()
+    if not summary:
+        return HttpResponse("Meeting summary not found", status=404)
+
+    filename = f"{bot.object_id}_meeting_summary.docx"
+    response = HttpResponse(
+        build_meeting_summary_docx(bot),
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+class DownloadMeetingSummaryDocxView(LoginRequiredMixin, View):
+    def get(self, request, object_id, bot_object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+        return _meeting_summary_docx_download_response(bot)
+
+
 def _guest_expect_app_session(request):
     return "/app_sessions/" in request.path
 
@@ -1227,6 +1269,14 @@ class GuestDownloadMeetingSummaryPdfView(View):
             return HttpResponse("Meeting summary PDF could not be generated", status=500)
 
         return redirect(remote_storage_url(bot.meeting_summary_pdf))
+
+
+class GuestDownloadMeetingSummaryDocxView(View):
+    def get(self, request, object_id, bot_object_id, mom_guest_token):
+        expect_app = _guest_expect_app_session(request)
+        bot = get_bot_for_guest_mom(object_id, bot_object_id, mom_guest_token)
+        assert_guest_url_matches_session_type(bot, expect_app_session=expect_app)
+        return _meeting_summary_docx_download_response(bot)
 
 
 class ProjectBotRecordingsView(LoginRequiredMixin, ProjectUrlContextMixin, View):

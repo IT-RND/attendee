@@ -67,6 +67,11 @@ urlpatterns = [
         name="guest-bot-mom-summary-pdf",
     ),
     path(
+        "<str:object_id>/bots/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/summary/docx",
+        projects_views.GuestDownloadMeetingSummaryDocxView.as_view(),
+        name="guest-bot-mom-summary-docx",
+    ),
+    path(
         "<str:object_id>/app_sessions/<str:bot_object_id>",
         projects_views.ProjectBotDetailView.as_view(),
         name="project-app-session-detail",
@@ -92,6 +97,11 @@ urlpatterns = [
         name="guest-app-session-mom-summary-pdf",
     ),
     path(
+        "<str:object_id>/app_sessions/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/summary/docx",
+        projects_views.GuestDownloadMeetingSummaryDocxView.as_view(),
+        name="guest-app-session-mom-summary-docx",
+    ),
+    path(
         "<str:object_id>/bots/<str:bot_object_id>/recordings",
         projects_views.ProjectBotRecordingsView.as_view(),
         name="project-bot-recordings",
@@ -115,6 +125,11 @@ urlpatterns = [
         "<str:object_id>/bots/<str:bot_object_id>/summary/pdf",
         projects_views.DownloadMeetingSummaryPdfView.as_view(),
         name="download-meeting-summary-pdf",
+    ),
+    path(
+        "<str:object_id>/bots/<str:bot_object_id>/summary/docx",
+        projects_views.DownloadMeetingSummaryDocxView.as_view(),
+        name="download-meeting-summary-docx",
     ),
     path(
         "<str:object_id>/credentials",

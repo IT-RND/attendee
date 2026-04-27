@@ -23,6 +23,12 @@
                        style="{% if not meeting_summary %}display:none;{% endif %}">
                         <i class="bi bi-file-earmark-pdf"></i> PDF
                     </a>
+                    <a href="{{ summary_api_urls.docx }}"
+                       id="btn-download-summary-docx"
+                       class="btn btn-outline-secondary btn-sm"
+                       style="{% if not meeting_summary %}display:none;{% endif %}">
+                        <i class="bi bi-file-earmark-word"></i> DOCX
+                    </a>
                     <button type="button"
                             id="btn-save-summary"
                             class="btn btn-outline-success btn-sm"
@@ -214,7 +220,9 @@ const loadingEl = document.getElementById('summary-loading');
 const btnGenerate = document.getElementById('btn-generate-summary');
 const btnSave = document.getElementById('btn-save-summary');
 const btnDownloadPdf = document.getElementById('btn-download-summary-pdf');
+const btnDownloadDocx = document.getElementById('btn-download-summary-docx');
 const downloadPdfUrl = btnDownloadPdf ? btnDownloadPdf.getAttribute('href') : null;
+const downloadDocxUrl = btnDownloadDocx ? btnDownloadDocx.getAttribute('href') : null;
 const saveStatus = document.getElementById('summary-save-status');
 const statusMsg = document.getElementById('summary-status-msg');
 const errorEl = document.getElementById('summary-error');
@@ -246,6 +254,7 @@ if (markdownStore.value.trim()) {
     toolbarEl.style.display = '';
     btnSave.style.display = 'none';
     if (btnDownloadPdf) btnDownloadPdf.style.display = '';
+    if (btnDownloadDocx) btnDownloadDocx.style.display = '';
 }
 
 // Wire up toolbar buttons
@@ -309,6 +318,16 @@ if (btnDownloadPdf) {
         }
     });
 }
+if (btnDownloadDocx) {
+    btnDownloadDocx.addEventListener('click', async (event) => {
+        event.preventDefault();
+
+        const saved = await saveSummary({ preserveButton: true, silentIfUnchanged: true });
+        if (saved && downloadDocxUrl) {
+            window.location.href = downloadDocxUrl;
+        }
+    });
+}
 
 // Streaming generation
 async function generateSummaryStream() {
@@ -321,6 +340,7 @@ async function generateSummaryStream() {
     btnGenerate.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Generating...';
     btnSave.style.display = 'none';
     if (btnDownloadPdf) btnDownloadPdf.style.display = 'none';
+    if (btnDownloadDocx) btnDownloadDocx.style.display = 'none';
 
     editor.commands.setContent('');
     let accumulated = '';
@@ -378,6 +398,7 @@ async function generateSummaryStream() {
         toolbarEl.style.display = '';
         btnSave.style.display = 'none';
         if (btnDownloadPdf && accumulated.trim()) btnDownloadPdf.style.display = '';
+        if (btnDownloadDocx && accumulated.trim()) btnDownloadDocx.style.display = '';
 
     } catch (err) {
         loadingEl.style.display = 'none';
@@ -418,6 +439,7 @@ async function saveSummary(options = {}) {
     btnSave.disabled = true;
     btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving...';
     if (btnDownloadPdf) btnDownloadPdf.classList.add('disabled');
+    if (btnDownloadDocx) btnDownloadDocx.classList.add('disabled');
     saveStatus.style.display = 'none';
 
     try {
@@ -441,6 +463,7 @@ async function saveSummary(options = {}) {
         saveStatus.style.display = '';
         btnSave.style.display = preserveButton ? '' : 'none';
         if (btnDownloadPdf) btnDownloadPdf.style.display = '';
+        if (btnDownloadDocx) btnDownloadDocx.style.display = '';
         setTimeout(() => { saveStatus.style.display = 'none'; }, 3000);
         return true;
 
@@ -453,6 +476,7 @@ async function saveSummary(options = {}) {
         btnSave.disabled = false;
         btnSave.innerHTML = '<i class="bi bi-check-lg"></i> Save';
         if (btnDownloadPdf) btnDownloadPdf.classList.remove('disabled');
+        if (btnDownloadDocx) btnDownloadDocx.classList.remove('disabled');
     }
 }
 </script>

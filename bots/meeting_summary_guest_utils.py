@@ -54,6 +54,10 @@ def authenticated_summary_api_urls(project_object_id: str, bot_object_id: str) -
             "projects:download-meeting-summary-pdf",
             kwargs={"object_id": project_object_id, "bot_object_id": bot_object_id},
         ),
+        "docx": reverse(
+            "projects:download-meeting-summary-docx",
+            kwargs={"object_id": project_object_id, "bot_object_id": bot_object_id},
+        ),
     }
 
 
@@ -73,4 +77,5 @@ def guest_summary_api_urls(
         "stream": reverse(f"projects:{p}-summary-stream", kwargs=kw),
         "save": reverse(f"projects:{p}-summary-save", kwargs=kw),
         "pdf": reverse(f"projects:{p}-summary-pdf", kwargs=kw),
+        "docx": reverse(f"projects:{p}-summary-docx", kwargs=kw),
     }

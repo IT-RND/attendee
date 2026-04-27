@@ -16,6 +16,7 @@ from bots.models import (
     GoogleMeetBotLoginGroup,
     Project,
     ProjectAccess,
+    SessionTypes,
     WebhookSubscription,
     WebhookTriggerTypes,
     ZoomOAuthApp,
@@ -478,6 +479,31 @@ class ObjectAccessIntegrationTest(TransactionTestCase):
         # Regular user cannot access calendar events in projects they don't have access to
         response = self.client.get(reverse("bots:project-calendar-event-detail", kwargs={"object_id": self.project_a2.object_id, "calendar_object_id": self.calendar_a2.object_id, "event_object_id": self.calendar_event_a2.object_id}))
         self.assertEqual(response.status_code, 403)
+
+    def test_calendar_detail_links_event_to_associated_session_detail(self):
+        self.bot_a1.calendar_event = self.calendar_event_a1
+        self.bot_a1.save(update_fields=["calendar_event"])
+
+        self.client.force_login(self.admin_user_a)
+        response = self.client.get(reverse("bots:project-calendar-detail", kwargs={"object_id": self.project_a1.object_id, "calendar_object_id": self.calendar_a1.object_id}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("bots:project-bot-detail", kwargs={"object_id": self.project_a1.object_id, "bot_object_id": self.bot_a1.object_id}))
+
+    def test_calendar_detail_links_app_session_to_app_session_detail(self):
+        app_session = Bot.objects.create(
+            project=self.project_a1,
+            name="App Session A1",
+            meeting_url="app_session",
+            calendar_event=self.calendar_event_a1,
+            session_type=SessionTypes.APP_SESSION,
+        )
+
+        self.client.force_login(self.admin_user_a)
+        response = self.client.get(reverse("bots:project-calendar-detail", kwargs={"object_id": self.project_a1.object_id, "calendar_object_id": self.calendar_a1.object_id}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("bots:project-app-session-detail", kwargs={"object_id": self.project_a1.object_id, "bot_object_id": app_session.object_id}))
 
     def test_api_key_deletion_access_control(self):
         """Test that API key deletion is properly controlled"""
