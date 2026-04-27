@@ -12,6 +12,13 @@
     <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.js"></script>
 
     <style>
+        :root {
+            --boga-red: #b42318;
+            --boga-red-dark: #8f1c14;
+            --boga-red-soft: #fef1f0;
+            --boga-red-border: #f4c7c3;
+        }
+
         .sidebar {
             min-height: 100vh;
             background-color: #f8f9fa;
@@ -28,6 +35,75 @@
         .sidebar .nav-link.active {
             background-color: #0d6efd;
             color: white;
+        }
+
+        .auth-shell {
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at top, rgba(255, 255, 255, 0.2), transparent 35%),
+                linear-gradient(160deg, #65120e 0%, var(--boga-red) 48%, #de4a3f 100%);
+        }
+
+        .auth-card {
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 1.25rem 3rem rgba(57, 11, 8, 0.28);
+            backdrop-filter: blur(10px);
+        }
+
+        .auth-card .btn-primary {
+            background-color: var(--boga-red);
+            border-color: var(--boga-red);
+        }
+
+        .auth-card .btn-primary:hover,
+        .auth-card .btn-primary:focus,
+        .auth-card .btn-primary:active {
+            background-color: var(--boga-red-dark);
+            border-color: var(--boga-red-dark);
+        }
+
+        .auth-card .form-control:focus {
+            border-color: #d96b63;
+            box-shadow: 0 0 0 0.25rem rgba(180, 35, 24, 0.18);
+        }
+
+        .auth-link,
+        .auth-card .text-primary {
+            color: var(--boga-red) !important;
+        }
+
+        .auth-title {
+            color: #4a1511;
+        }
+
+        .auth-link-row {
+            text-align: right;
+        }
+
+        .auth-subtle-link {
+            color: #7f1d18;
+            font-size: 0.8rem;
+            text-decoration: none;
+            opacity: 0.82;
+        }
+
+        .auth-subtle-link:hover,
+        .auth-subtle-link:focus {
+            color: var(--boga-red);
+            opacity: 1;
+            text-decoration: underline;
+        }
+
+        .auth-whisper {
+            color: rgba(74, 21, 17, 0.62);
+            font-size: 0.74rem;
+            line-height: 1.2;
+        }
+
+        .auth-whisper .auth-subtle-link {
+            font-size: 0.74rem;
+            opacity: 0.68;
         }
     </style>
 </head>

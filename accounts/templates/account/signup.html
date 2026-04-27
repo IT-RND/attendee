@@ -4,17 +4,19 @@
 {% load static %}
 
 {% block body_content %}
+<div class="auth-shell">
 <div class="container">
     <div class="row min-vh-100 align-items-center justify-content-center">
         <div class="col-sm-12 col-md-8 col-lg-6 col-xl-5">
-            <div class="card shadow-lg border-0 rounded-lg">
+            <div class="card auth-card shadow-lg border-0 rounded-4">
                 <div class="card-body p-5">
                     <!-- Logo and Title -->
                     <div class="text-center mb-3">
                         <img src="{% static 'images/logo_with_text.png' %}" alt="Boga (Meeting) Assistant" class="img-fluid" style="min-width: 170px; max-width: 250px;">
                     </div>
                     <div class="text-center mb-4">
-                        <h4 class="text-dark">Create account</h4>
+                        <h4 class="auth-title">Create account</h4>
+                        <p class="text-muted mb-0">Set up your Boga workspace access.</p>
                     </div>
 
                     <!-- Google Sign In Button -->
@@ -62,16 +64,14 @@
                     </form>
 
                     <!-- Links -->
-                    <div class="text-center mt-4">
-                        <p class="small mb-0">
-                            Already have an account? 
-                            <a href="{% url 'account_login' %}" class="text-primary">Sign In</a>
-                        </p>
+                    <div class="auth-link-row mt-4">
+                        <a href="{% url 'account_login' %}" class="auth-subtle-link">Sign in</a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <script>

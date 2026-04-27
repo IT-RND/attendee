@@ -1,28 +1,43 @@
 {% extends 'base.html' %}
 
 {% block body_content %}
-<div class="container py-5">
+<div class="auth-shell py-5">
+<div class="container">
     <div class="row justify-content-center">
         <div class="col-lg-10 col-xl-9">
-            <div class="text-center mb-4">
-                <h1 class="h2 mb-2">Boga Meeting Assistant</h1>
-                <p class="text-muted mb-3">Guest can create a meeting session without an account.</p>
-                <div class="d-flex justify-content-center gap-2">
-                    <a href="{% url 'account_login' %}" class="btn btn-outline-primary btn-sm">Login</a>
-                    <a href="{% url 'account_signup' %}" class="btn btn-outline-secondary btn-sm">Sign up</a>
+            <!-- <div class="card auth-card shadow-lg border-0 rounded-4 mb-4">
+                <div class="card-body p-4 p-md-5">
+                    <div class="text-center">
+                        <span class="badge rounded-pill text-bg-danger-subtle border border-danger-subtle text-danger mb-3">Boga Guest Access</span>
+                        <h1 class="h2 auth-title mb-2">Boga Meeting Assistant</h1>
+                        <p class="text-muted mb-3">Guest can create a meeting session without an account.</p>
+                    </div>
+                    <div class="auth-link-row mt-3">
+                        <div class="auth-whisper">
+                            Invited users:
+                            <a href="{% url 'account_login' %}" class="auth-subtle-link">sign in</a>
+                            /
+                            <a href="{% url 'account_signup' %}" class="auth-subtle-link">sign up</a>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </div> -->
 
-            <div class="card shadow-sm">
+            <div class="card auth-card shadow-sm border-0 rounded-4">
                 <div class="card-body p-4">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
                         <div>
                             <h2 class="h5 mb-1">Scheduled Meetings</h2>
                             <p class="text-muted small mb-0">Meeting yang sudah dijadwalkan tampil di kalender ini.</p>
                         </div>
-                        <div class="btn-group btn-group-sm" role="group" aria-label="Calendar navigation">
-                            <a class="btn btn-outline-secondary" href="?month={{ previous_calendar_month }}">Previous</a>
-                            <a class="btn btn-outline-secondary" href="?month={{ next_calendar_month }}">Next</a>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <button type="button" id="scrollToGuestSessionForm" class="btn btn-primary btn-sm">
+                                Tambah Session
+                            </button>
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Calendar navigation">
+                                <a class="btn btn-outline-secondary" href="?month={{ previous_calendar_month }}">Previous</a>
+                                <a class="btn btn-outline-secondary" href="?month={{ next_calendar_month }}">Next</a>
+                            </div>
                         </div>
                     </div>
 
@@ -69,7 +84,7 @@
                 </div>
             </div>
 
-            <div class="card shadow-sm mt-4">
+            <div id="guestSessionFormCard" class="card auth-card shadow-sm border-0 rounded-4 mt-4">
                 <div class="card-body p-4">
                     <h2 class="h5 mb-3">Create Guest Session</h2>
                     <div class="alert alert-info">
@@ -116,8 +131,20 @@
         </div>
     </div>
 </div>
+</div>
 
 <script>
+    document.getElementById('scrollToGuestSessionForm').addEventListener('click', function() {
+        const formCard = document.getElementById('guestSessionFormCard');
+        const sessionNameInput = document.getElementById('id_session_name');
+
+        formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        window.setTimeout(function() {
+            sessionNameInput.focus();
+        }, 300);
+    });
+
     document.getElementById('guestSessionForm').addEventListener('submit', function(event) {
         event.preventDefault();
 

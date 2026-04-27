@@ -4,14 +4,19 @@
 {% load static %}
 
 {% block body_content %}
+<div class="auth-shell">
 <div class="container">
     <div class="row min-vh-100 align-items-center justify-content-center">
         <div class="col-sm-12 col-md-8 col-lg-6 col-xl-5">
-            <div class="card shadow-lg border-0 rounded-lg">
+            <div class="card auth-card shadow-lg border-0 rounded-4">
                 <div class="card-body p-5">
                     <!-- Logo and Title -->
                     <div class="text-center mb-4">
                         <img src="{% static 'images/logo_with_text.png' %}" alt="Boga (Meeting) Assistant" class="img-fluid" style="min-width: 170px; max-width: 250px;">
+                    </div>
+                    <div class="text-center mb-4">
+                        <h4 class="auth-title mb-2">Welcome back</h4>
+                        <p class="text-muted mb-0">Sign in to continue with Boga.</p>
                     </div>
 
                     <!-- Google Sign In Button -->
@@ -52,11 +57,11 @@
                     <div class="text-center mt-4">
                         <p class="small mb-3">
                             Need Boga Assistant to join a meeting?
-                            <a href="{% url 'projects:guest-create-session' %}" class="text-primary">Create a guest session</a>
+                            <a href="{% url 'projects:guest-create-session' %}" class="auth-link">Create a guest session</a>
                         </p>
                         <p class="small mb-0">
                             Don't have an account? 
-                            <a href="{% url 'account_signup' %}" class="text-primary">Sign up</a>
+                            <a href="{% url 'account_signup' %}" class="auth-link">Sign up</a>
                         </p>
                         <p class="small mb-0 mt-2">
                             <a href="{% url 'account_reset_password' %}" class="text-muted">Forgot Password?</a>
@@ -66,5 +71,6 @@
             </div>
         </div>
     </div>
+</div>
 </div>
 {% endblock %}
