@@ -113,7 +113,7 @@ class TestCreateBot(TestCase):
         req = bot.chat_message_requests.first()
         self.assertIsNotNone(req)
         self.assertEqual(req.to, BotChatMessageToOptions.EVERYONE)
-        self.assertIn("Halo semua saya boga assistant, saya izin catat meeting ini, berikut link MoM nya.", req.message)
+        self.assertIn("Halo semua saya boga assistant, saya izin catat meeting ini, berikut link MoM nya. ", req.message)
         self.assertIn("/guest/", req.message)
         self.assertIn(f"/projects/{bot.project.object_id}/bots/{bot.object_id}", req.message)
         self.assertIsNotNone(bot.mom_guest_token)

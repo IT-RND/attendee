@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block body_content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-9">
+            <div class="text-center mb-4">
+                <h1 class="h2 mb-2">Boga Meeting Assistant</h1>
+                <p class="text-muted mb-3">Guest can create a meeting session without an account.</p>
+                <div class="d-flex justify-content-center gap-2">
+                    <a href="{% url 'account_login' %}" class="btn btn-outline-primary btn-sm">Login</a>
+                    <a href="{% url 'account_signup' %}" class="btn btn-outline-secondary btn-sm">Sign up</a>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div>
+                            <h2 class="h5 mb-1">Scheduled Meetings</h2>
+                            <p class="text-muted small mb-0">Meeting yang sudah dijadwalkan tampil di kalender ini.</p>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Calendar navigation">
+                            <a class="btn btn-outline-secondary" href="?month={{ previous_calendar_month }}">Previous</a>
+                            <a class="btn btn-outline-secondary" href="?month={{ next_calendar_month }}">Next</a>
+                        </div>
+                    </div>
+
+                    <h3 class="h6 text-center mb-3">{{ calendar_month_label }}</h3>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-top calendar-table mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Mon</th>
+                                    <th>Tue</th>
+                                    <th>Wed</th>
+                                    <th>Thu</th>
+                                    <th>Fri</th>
+                                    <th>Sat</th>
+                                    <th>Sun</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for week in calendar_weeks %}
+                                <tr>
+                                    {% for day in week %}
+                                    <td class="{% if not day.in_month %}bg-light text-muted{% endif %}" style="min-width: 120px; height: 120px;">
+                                        <div class="fw-semibold small mb-2">{{ day.day }}</div>
+                                        {% for event in day.events %}
+                                        <div class="border rounded p-2 mb-2 bg-primary-subtle small">
+                                            <div class="fw-semibold">{{ event.time }} - {{ event.name }}</div>
+                                            <div class="text-muted">{{ event.status }}</div>
+                                        </div>
+                                        {% endfor %}
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {% if not has_scheduled_sessions %}
+                    <div class="text-center text-muted py-3">
+                        Belum ada meeting terjadwal bulan ini.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card shadow-sm mt-4">
+                <div class="card-body p-4">
+                    <h2 class="h5 mb-3">Create Guest Session</h2>
+                    <div class="alert alert-info">
+                        Guests can run up to <strong>{{ guest_limit }}</strong> concurrent sessions. No account or token is required.
+                    </div>
+
+                    <form id="guestSessionForm" action="{% url 'projects:guest-create-session' %}" method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="id_session_name" class="form-label">Session name</label>
+                            <input type="text" class="form-control" id="id_session_name" name="session_name" maxlength="255" placeholder="Weekly sales sync" required>
+                            <div class="form-text">This name is saved with the session details. The bot still joins as Boga Assistant.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="id_meeting_url" class="form-label">Meeting link</label>
+                            <input type="url" class="form-control" id="id_meeting_url" name="meeting_url" placeholder="https://meet.google.com/abc-defg-hij" required>
+                            <div class="form-text">Supports Google Meet, Zoom, and Microsoft Teams links.</div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="id_join_at" class="form-label">Meeting starts</label>
+                                <input type="datetime-local" class="form-control" id="id_join_at" name="join_at">
+                                <div class="form-text">Leave blank if Boga Assistant should join immediately.</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="id_end_at" class="form-label">Meeting ends</label>
+                                <input type="datetime-local" class="form-control" id="id_end_at" name="end_at">
+                                <div class="form-text">Optional, shown in the calendar schedule.</div>
+                            </div>
+                        </div>
+
+                        <div id="guestSessionError" class="alert alert-danger d-none"></div>
+                        <div id="guestSessionSuccess" class="alert alert-success d-none"></div>
+
+                        <button type="submit" id="guestSessionSubmit" class="btn btn-primary w-100">
+                            Create Session
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('guestSessionForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const form = event.currentTarget;
+        const submitButton = document.getElementById('guestSessionSubmit');
+        const errorContainer = document.getElementById('guestSessionError');
+        const successContainer = document.getElementById('guestSessionSuccess');
+        const formData = new FormData(form);
+        const joinAtInput = document.getElementById('id_join_at');
+        const endAtInput = document.getElementById('id_end_at');
+        const csrfToken = form.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        if (joinAtInput.value) {
+            formData.set('join_at', new Date(joinAtInput.value).toISOString());
+        }
+        if (endAtInput.value) {
+            formData.set('end_at', new Date(endAtInput.value).toISOString());
+        }
+
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
+        errorContainer.classList.add('d-none');
+        successContainer.classList.add('d-none');
+        errorContainer.textContent = '';
+        successContainer.textContent = '';
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(function(response) {
+            return response.json().then(function(payload) {
+                if (!response.ok) {
+                    throw payload;
+                }
+                return payload;
+            });
+        })
+        .then(function(payload) {
+            const link = document.createElement('a');
+            link.href = payload.session_url;
+            link.textContent = 'Open session page';
+            link.target = '_blank';
+            link.rel = 'noopener';
+
+            successContainer.textContent = payload.message + ' ';
+            successContainer.appendChild(link);
+            successContainer.classList.remove('d-none');
+            form.reset();
+        })
+        .catch(function(error) {
+            errorContainer.textContent = error.error || JSON.stringify(error);
+            errorContainer.classList.remove('d-none');
+        })
+        .finally(function() {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Create Session';
+        });
+    });
+</script>
+{% endblock %}

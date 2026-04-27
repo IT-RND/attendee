@@ -1,8 +1,10 @@
 import base64
+import calendar
 import json
 import logging
 import os
 import uuid
+from datetime import datetime
 from urllib.parse import urlencode
 
 import stripe
@@ -14,6 +16,8 @@ from django.db import models, transaction
 from django.http import HttpResponse, JsonResponse, QueryDict, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views import View
 from django.views.generic import ListView
 
@@ -85,6 +89,12 @@ from .utils import generate_recordings_json_for_bot_detail_view
 from .zoom_oauth_apps_api_utils import create_or_update_zoom_oauth_app
 
 logger = logging.getLogger(__name__)
+
+GUEST_SESSION_CONCURRENT_BOTS_LIMIT = 3
+GUEST_SESSION_LIMIT_ERROR = (
+    "Boga Assistant cannot join right now because there are already 3 concurrent guest sessions. "
+    "Sign in to use your account limit or try again when one session ends."
+)
 
 
 def _recordings_partial_context(bot: Bot) -> dict:
@@ -1564,6 +1574,219 @@ class CreateCheckoutSessionView(LoginRequiredMixin, ProjectUrlContextMixin, View
 
         # Redirect directly to the Stripe checkout page
         return redirect(checkout_session.url)
+
+
+def _guest_session_project():
+    project_object_id = os.getenv("GUEST_SESSION_PROJECT_OBJECT_ID") or os.getenv("GUEST_PROJECT_OBJECT_ID")
+    if project_object_id:
+        return Project.objects.filter(object_id=project_object_id).first()
+
+    return Project.objects.order_by("created_at").first()
+
+
+def _guest_session_project_for_request(request):
+    if request.user.is_authenticated:
+        project = Project.accessible_to(request.user).first()
+        if project:
+            return project
+        return Project.objects.create(name=f"{request.user.email}'s project", organization=request.user.organization)
+
+    return _guest_session_project()
+
+
+def _parse_guest_session_join_at(raw_join_at):
+    raw_join_at = (raw_join_at or "").strip()
+    if not raw_join_at:
+        return None, None
+
+    join_at = parse_datetime(raw_join_at)
+    if join_at is None:
+        return None, {"error": "Calendar time must be a valid date and time."}
+
+    if timezone.is_naive(join_at):
+        join_at = timezone.make_aware(join_at, timezone.get_current_timezone())
+
+    return join_at, None
+
+
+def _guest_session_event_time_range(local_join_at, metadata):
+    scheduled_end_at = (metadata or {}).get("scheduled_end_at")
+    if not scheduled_end_at:
+        return local_join_at.strftime("%H:%M")
+
+    end_at = parse_datetime(scheduled_end_at)
+    if end_at is None:
+        return local_join_at.strftime("%H:%M")
+
+    if timezone.is_naive(end_at):
+        end_at = timezone.make_aware(end_at, timezone.get_current_timezone())
+
+    local_end_at = timezone.localtime(end_at)
+    return f"{local_join_at.strftime('%H:%M')} - {local_end_at.strftime('%H:%M')}"
+
+
+def _parse_guest_calendar_month(raw_month):
+    today = timezone.localdate()
+    if not raw_month:
+        return today.year, today.month
+
+    try:
+        selected = datetime.strptime(raw_month, "%Y-%m")
+    except ValueError:
+        return today.year, today.month
+
+    return selected.year, selected.month
+
+
+def _guest_session_calendar(project, raw_month):
+    year, month = _parse_guest_calendar_month(raw_month)
+    month_start = timezone.make_aware(datetime(year, month, 1), timezone.get_current_timezone())
+    next_month_year = year + 1 if month == 12 else year
+    next_month = 1 if month == 12 else month + 1
+    month_end = timezone.make_aware(datetime(next_month_year, next_month, 1), timezone.get_current_timezone())
+
+    scheduled_bots = []
+    if project:
+        scheduled_bots = (
+            Bot.objects.filter(project=project, join_at__gte=month_start, join_at__lt=month_end)
+            .exclude(state__in=BotStates.post_meeting_states())
+            .order_by("join_at")
+        )
+
+    events_by_day = {}
+    for bot in scheduled_bots:
+        local_join_at = timezone.localtime(bot.join_at)
+        day_key = local_join_at.date()
+        metadata = bot.metadata or {}
+        events_by_day.setdefault(day_key, []).append(
+            {
+                "time": _guest_session_event_time_range(local_join_at, metadata),
+                "name": metadata.get("session_name") or bot.name,
+                "status": BotStates(bot.state).label,
+            }
+        )
+
+    weeks = []
+    for week in calendar.Calendar(firstweekday=0).monthdatescalendar(year, month):
+        weeks.append(
+            [
+                {
+                    "date": day,
+                    "day": day.day,
+                    "in_month": day.month == month,
+                    "events": events_by_day.get(day, []),
+                }
+                for day in week
+            ]
+        )
+
+    previous_year = year - 1 if month == 1 else year
+    previous_month = 12 if month == 1 else month - 1
+    next_year = year + 1 if month == 12 else year
+    next_month = 1 if month == 12 else month + 1
+
+    return {
+        "calendar_weeks": weeks,
+        "calendar_month_label": month_start.strftime("%B %Y"),
+        "previous_calendar_month": f"{previous_year:04d}-{previous_month:02d}",
+        "next_calendar_month": f"{next_year:04d}-{next_month:02d}",
+        "has_scheduled_sessions": any(day["events"] for week in weeks for day in week),
+    }
+
+
+class GuestCreateSessionView(View):
+    template_name = "projects/guest_create_session.html"
+
+    def get(self, request):
+        project = _guest_session_project_for_request(request)
+        context = {
+            "guest_limit": GUEST_SESSION_CONCURRENT_BOTS_LIMIT,
+        }
+        context.update(_guest_session_calendar(project, request.GET.get("month")))
+        return render(
+            request,
+            self.template_name,
+            context,
+        )
+
+    def post(self, request):
+        try:
+            session_name = (request.POST.get("session_name") or "").strip()
+            meeting_url = (request.POST.get("meeting_url") or "").strip()
+            raw_join_at = request.POST.get("join_at")
+            raw_end_at = request.POST.get("end_at")
+
+            if not session_name:
+                return JsonResponse({"error": "Session name is required."}, status=400)
+            if not meeting_url:
+                return JsonResponse({"error": "Meeting link is required."}, status=400)
+
+            join_at, error = _parse_guest_session_join_at(raw_join_at)
+            if error:
+                return JsonResponse(error, status=400)
+
+            end_at, error = _parse_guest_session_join_at(raw_end_at)
+            if error:
+                return JsonResponse({"error": "Meeting end time must be a valid date and time."}, status=400)
+            if join_at and end_at and end_at <= join_at:
+                return JsonResponse({"error": "Meeting end time must be after the meeting start time."}, status=400)
+
+            if request.user.is_authenticated:
+                project = _guest_session_project_for_request(request)
+                concurrent_bots_limit = None
+                concurrency_error_message = None
+                source = BotCreationSource.DASHBOARD
+            else:
+                project = _guest_session_project()
+                concurrent_bots_limit = GUEST_SESSION_CONCURRENT_BOTS_LIMIT
+                concurrency_error_message = GUEST_SESSION_LIMIT_ERROR
+                source = BotCreationSource.GUEST
+
+            if not project:
+                return JsonResponse({"error": "Guest sessions are not configured yet because no project exists."}, status=400)
+
+            metadata = {
+                "created_from": "guest_session_ui",
+                "session_name": session_name,
+            }
+            if end_at:
+                metadata["scheduled_end_at"] = end_at.isoformat()
+            if request.user.is_authenticated:
+                metadata["authenticated_user_id"] = request.user.object_id
+
+            data = {
+                "meeting_url": meeting_url,
+                "bot_name": DEFAULT_BOT_NAME,
+                "metadata": metadata,
+            }
+            if join_at:
+                data["join_at"] = join_at.isoformat()
+
+            bot, error = create_bot(
+                data=data,
+                source=source,
+                project=project,
+                concurrent_bots_limit=concurrent_bots_limit,
+                concurrency_error_message=concurrency_error_message,
+            )
+            if error:
+                return JsonResponse(error, status=400)
+
+            if bot.state == BotStates.JOINING:
+                launch_bot(bot)
+
+            return JsonResponse(
+                {
+                    "message": "Session created. Boga Assistant will join at the selected time." if bot.state == BotStates.SCHEDULED else "Session created. Boga Assistant is joining now.",
+                    "bot_id": bot.object_id,
+                    "session_url": guest_mom_page_absolute_url(bot),
+                    "state": BotStates.state_to_api_code(bot.state),
+                    "join_at": bot.join_at.isoformat() if bot.join_at else None,
+                },
+                status=201,
+            )
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
 
 
 class CreateBotView(LoginRequiredMixin, ProjectUrlContextMixin, View):

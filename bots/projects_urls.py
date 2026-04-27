@@ -7,6 +7,11 @@ app_name = "bots"
 
 urlpatterns = [
     path(
+        "guest/session",
+        projects_views.GuestCreateSessionView.as_view(),
+        name="guest-create-session",
+    ),
+    path(
         "calendars/google/callback",
         projects_views.GoogleCalendarOAuthCallbackView.as_view(),
         name="project-google-calendar-oauth-callback",

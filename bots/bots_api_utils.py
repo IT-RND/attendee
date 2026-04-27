@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_JOIN_BOT_CHAT_MESSAGE_PREFIX = (
-    "Halo semua saya boga assistant, saya izin catat meeting ini, berikut link MoM nya."
+    "Halo semua saya boga assistant, saya izin catat meeting ini, berikut link MoM nya. "
 )
 
 
@@ -192,16 +192,6 @@ def validate_meeting_url_and_credentials(meeting_url, project):
     return None
 
 
-def validate_bot_concurrency_limit(project):
-    active_bots_count = Bot.objects.filter(project=project).filter(BotEventManager.get_in_meeting_states_q_filter()).count()
-    concurrent_bots_limit = project.concurrent_bots_limit()
-    if active_bots_count >= concurrent_bots_limit:
-        logger.error(f"Project {project.object_id} has exceeded the maximum number of concurrent bots ({concurrent_bots_limit}).")
-        return {"error": f"You have exceeded the maximum number of concurrent bots ({concurrent_bots_limit}) for your account. Please reach out to customer support to increase the limit."}
-
-    return None
-
-
 # Returns a tuple of (calendar_event, error)
 # Side effect: sets the meeting_url and join_at in the data dictionary if the calendar event is found
 def initialize_bot_creation_data_from_calendar_event(data, project):
@@ -238,10 +228,24 @@ def validate_external_media_storage_settings(external_media_storage_settings, pr
 class BotCreationSource(str, Enum):
     API = "api"
     DASHBOARD = "dashboard"
+    GUEST = "guest"
     SCHEDULER = "scheduler"
 
 
-def create_bot(data: dict, source: BotCreationSource, project: Project) -> tuple[Bot | None, dict | None]:
+def validate_bot_concurrency_limit(project, concurrent_bots_limit=None, error_message=None):
+    active_bots_count = Bot.objects.filter(project=project).filter(BotEventManager.get_in_meeting_states_q_filter()).count()
+    concurrent_bots_limit = concurrent_bots_limit if concurrent_bots_limit is not None else project.concurrent_bots_limit()
+    if active_bots_count >= concurrent_bots_limit:
+        logger.error(f"Project {project.object_id} has exceeded the maximum number of concurrent bots ({concurrent_bots_limit}).")
+        return {
+            "error": error_message
+            or f"You have exceeded the maximum number of concurrent bots ({concurrent_bots_limit}) for your account. Please reach out to customer support to increase the limit."
+        }
+
+    return None
+
+
+def create_bot(data: dict, source: BotCreationSource, project: Project, concurrent_bots_limit=None, concurrency_error_message=None) -> tuple[Bot | None, dict | None]:
     # Given them a small grace period before we start rejecting requests
     if project.organization.out_of_credits():
         logger.error(f"Organization {project.organization.id} has insufficient credits. Please add credits in the Account -> Billing page.")
@@ -289,7 +293,7 @@ def create_bot(data: dict, source: BotCreationSource, project: Project) -> tuple
     if error:
         return None, error
 
-    error = validate_bot_concurrency_limit(project)
+    error = validate_bot_concurrency_limit(project, concurrent_bots_limit=concurrent_bots_limit, error_message=concurrency_error_message)
     if error:
         return None, error
 
