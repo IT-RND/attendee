@@ -108,14 +108,32 @@
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="id_join_at" class="form-label">Meeting starts</label>
-                                <input type="datetime-local" class="form-control" id="id_join_at" name="join_at">
-                                <div class="form-text">Leave blank if Boga Assistant should join immediately.</div>
+                                <label class="form-label">Meeting starts</label>
+                                <div class="row g-2">
+                                    <div class="col-sm-7">
+                                        <label for="id_join_date" class="form-label small mb-1">Tanggal mulai</label>
+                                        <input type="date" class="form-control" id="id_join_date" inputmode="none" autocomplete="off">
+                                    </div>
+                                    <div class="col-sm-5">
+                                        <label for="id_join_time" class="form-label small mb-1">Jam mulai</label>
+                                        <input type="time" class="form-control" id="id_join_time" inputmode="none" autocomplete="off" step="60">
+                                    </div>
+                                </div>
+                                <div class="form-text">Klik kolom untuk langsung pilih tanggal dan jam dari popup. Leave blank if Boga Assistant should join immediately.</div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="id_end_at" class="form-label">Meeting ends</label>
-                                <input type="datetime-local" class="form-control" id="id_end_at" name="end_at">
-                                <div class="form-text">Optional, shown in the calendar schedule.</div>
+                                <label class="form-label">Meeting ends</label>
+                                <div class="row g-2">
+                                    <div class="col-sm-7">
+                                        <label for="id_end_date" class="form-label small mb-1">Tanggal selesai</label>
+                                        <input type="date" class="form-control" id="id_end_date" inputmode="none" autocomplete="off">
+                                    </div>
+                                    <div class="col-sm-5">
+                                        <label for="id_end_time" class="form-label small mb-1">Jam selesai</label>
+                                        <input type="time" class="form-control" id="id_end_time" inputmode="none" autocomplete="off" step="60">
+                                    </div>
+                                </div>
+                                <div class="form-text">Klik kolom untuk pilih dari popup. Optional, shown in the calendar schedule.</div>
                             </div>
                         </div>
 
@@ -134,6 +152,35 @@
 </div>
 
 <script>
+    function setupNativePickerInput(input) {
+        function openPicker() {
+            if (typeof input.showPicker === 'function') {
+                input.showPicker();
+            }
+        }
+
+        input.addEventListener('focus', openPicker);
+        input.addEventListener('click', openPicker);
+        input.addEventListener('keydown', function(event) {
+            event.preventDefault();
+        });
+        input.addEventListener('paste', function(event) {
+            event.preventDefault();
+        });
+    }
+
+    function buildIsoDateTime(dateInput, timeInput, fieldLabel) {
+        if (!dateInput.value && !timeInput.value) {
+            return '';
+        }
+
+        if (!dateInput.value || !timeInput.value) {
+            throw new Error(fieldLabel + ' harus diisi lengkap: tanggal dan jam.');
+        }
+
+        return new Date(dateInput.value + 'T' + timeInput.value).toISOString();
+    }
+
     document.getElementById('scrollToGuestSessionForm').addEventListener('click', function() {
         const formCard = document.getElementById('guestSessionFormCard');
         const sessionNameInput = document.getElementById('id_session_name');
@@ -145,6 +192,11 @@
         }, 300);
     });
 
+    setupNativePickerInput(document.getElementById('id_join_date'));
+    setupNativePickerInput(document.getElementById('id_join_time'));
+    setupNativePickerInput(document.getElementById('id_end_date'));
+    setupNativePickerInput(document.getElementById('id_end_time'));
+
     document.getElementById('guestSessionForm').addEventListener('submit', function(event) {
         event.preventDefault();
 
@@ -153,23 +205,40 @@
         const errorContainer = document.getElementById('guestSessionError');
         const successContainer = document.getElementById('guestSessionSuccess');
         const formData = new FormData(form);
-        const joinAtInput = document.getElementById('id_join_at');
-        const endAtInput = document.getElementById('id_end_at');
+        const joinDateInput = document.getElementById('id_join_date');
+        const joinTimeInput = document.getElementById('id_join_time');
+        const endDateInput = document.getElementById('id_end_date');
+        const endTimeInput = document.getElementById('id_end_time');
         const csrfToken = form.querySelector('[name=csrfmiddlewaretoken]').value;
 
-        if (joinAtInput.value) {
-            formData.set('join_at', new Date(joinAtInput.value).toISOString());
-        }
-        if (endAtInput.value) {
-            formData.set('end_at', new Date(endAtInput.value).toISOString());
-        }
-
-        submitButton.disabled = true;
-        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
         errorContainer.classList.add('d-none');
         successContainer.classList.add('d-none');
         errorContainer.textContent = '';
         successContainer.textContent = '';
+
+        try {
+            const joinAtValue = buildIsoDateTime(joinDateInput, joinTimeInput, 'Meeting starts');
+            const endAtValue = buildIsoDateTime(endDateInput, endTimeInput, 'Meeting ends');
+
+            if (joinAtValue) {
+                formData.set('join_at', joinAtValue);
+            } else {
+                formData.delete('join_at');
+            }
+
+            if (endAtValue) {
+                formData.set('end_at', endAtValue);
+            } else {
+                formData.delete('end_at');
+            }
+        } catch (error) {
+            errorContainer.textContent = error.message;
+            errorContainer.classList.remove('d-none');
+            return;
+        }
+
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
 
         fetch(form.action, {
             method: 'POST',
