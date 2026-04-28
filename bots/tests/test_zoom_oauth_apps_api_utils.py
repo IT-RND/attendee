@@ -20,11 +20,8 @@ class TestCreateOrUpdateZoomOAuthApp(TestCase):
         self.organization = Organization.objects.create(name="Test Org")
         self.project = Project.objects.create(name="Test Project", organization=self.organization)
 
-    @patch("bots.zoom_oauth_apps_api_utils.client_id_and_secret_is_valid")
-    def test_create_zoom_oauth_app_success(self, mock_is_valid):
+    def test_create_zoom_oauth_app_success(self):
         """Test successful creation of a new zoom oauth app with valid credentials."""
-        mock_is_valid.return_value = True
-
         zoom_oauth_app, error = create_or_update_zoom_oauth_app(
             project=self.project,
             client_id="test_client_id",
@@ -47,9 +44,6 @@ class TestCreateOrUpdateZoomOAuthApp(TestCase):
         self.assertIsNotNone(credentials)
         self.assertEqual(credentials["client_secret"], "test_client_secret")
         self.assertEqual(credentials["webhook_secret"], "test_webhook_secret")
-
-        # Verify validation was called
-        mock_is_valid.assert_called_once_with("test_client_id", "test_client_secret")
 
     def test_create_zoom_oauth_app_missing_client_id(self):
         """Test creation fails when client_id is missing."""
@@ -79,11 +73,8 @@ class TestCreateOrUpdateZoomOAuthApp(TestCase):
         self.assertIsNotNone(error)
         self.assertIn("client_id and client_secret are required", error)
 
-    @patch("bots.zoom_oauth_apps_api_utils.client_id_and_secret_is_valid")
-    def test_create_zoom_oauth_app_invalid_credentials(self, mock_is_valid):
-        """Test creation fails when credentials are invalid."""
-        mock_is_valid.return_value = False
-
+    def test_create_zoom_oauth_app_without_validating_credentials(self):
+        """Test creation stores credentials so Zoom can validate them during OAuth callback."""
         zoom_oauth_app, error = create_or_update_zoom_oauth_app(
             project=self.project,
             client_id="invalid_client_id",
@@ -91,19 +82,13 @@ class TestCreateOrUpdateZoomOAuthApp(TestCase):
             webhook_secret="test_webhook_secret",
         )
 
-        # Verify creation failed
-        self.assertIsNone(zoom_oauth_app)
-        self.assertIsNotNone(error)
-        self.assertIn("Invalid client id or client secret", error)
+        self.assertIsNotNone(zoom_oauth_app)
+        self.assertIsNone(error)
+        self.assertEqual(zoom_oauth_app.client_id, "invalid_client_id")
+        self.assertEqual(zoom_oauth_app.get_credentials()["client_secret"], "invalid_client_secret")
 
-        # Verify validation was called
-        mock_is_valid.assert_called_once_with("invalid_client_id", "invalid_client_secret")
-
-    @patch("bots.zoom_oauth_apps_api_utils.client_id_and_secret_is_valid")
-    def test_create_zoom_oauth_app_with_whitespace_secrets(self, mock_is_valid):
+    def test_create_zoom_oauth_app_with_whitespace_secrets(self):
         """Test creation with secrets that have leading/trailing whitespace."""
-        mock_is_valid.return_value = True
-
         zoom_oauth_app, error = create_or_update_zoom_oauth_app(
             project=self.project,
             client_id="test_client_id",
@@ -121,11 +106,8 @@ class TestCreateOrUpdateZoomOAuthApp(TestCase):
         self.assertEqual(credentials["webhook_secret"], "test_webhook_secret")
 
     @patch("bots.zoom_oauth_apps_api_utils.validate_zoom_oauth_connections")
-    @patch("bots.zoom_oauth_apps_api_utils.client_id_and_secret_is_valid")
-    def test_update_zoom_oauth_app_client_secret_success(self, mock_is_valid, mock_validate_task):
+    def test_update_zoom_oauth_app_client_secret_success(self, mock_validate_task):
         """Test successful update of client secret for existing zoom oauth app."""
-        mock_is_valid.return_value = True
-
         # Create initial app
         zoom_oauth_app = ZoomOAuthApp.objects.create(project=self.project, client_id="test_client_id")
         zoom_oauth_app.set_credentials({"client_secret": "old_client_secret", "webhook_secret": "old_webhook_secret"})
@@ -149,18 +131,12 @@ class TestCreateOrUpdateZoomOAuthApp(TestCase):
         self.assertEqual(credentials["client_secret"], "new_client_secret")
         self.assertEqual(credentials["webhook_secret"], "old_webhook_secret")  # Preserved
 
-        # Verify validation was called
-        mock_is_valid.assert_called_once_with("test_client_id", "new_client_secret")
-
         # Verify validate_zoom_oauth_connections task was triggered
         mock_validate_task.delay.assert_called_once_with(zoom_oauth_app.id)
 
     @patch("bots.zoom_oauth_apps_api_utils.validate_zoom_oauth_connections")
-    @patch("bots.zoom_oauth_apps_api_utils.client_id_and_secret_is_valid")
-    def test_update_zoom_oauth_app_client_secret_same_value(self, mock_is_valid, mock_validate_task):
+    def test_update_zoom_oauth_app_client_secret_same_value(self, mock_validate_task):
         """Test updating client secret with same value does not trigger validation."""
-        mock_is_valid.return_value = True
-
         # Create initial app
         zoom_oauth_app = ZoomOAuthApp.objects.create(project=self.project, client_id="test_client_id")
         zoom_oauth_app.set_credentials({"client_secret": "same_secret", "webhook_secret": "old_webhook_secret"})
@@ -177,22 +153,16 @@ class TestCreateOrUpdateZoomOAuthApp(TestCase):
         self.assertIsNotNone(updated_app)
         self.assertIsNone(error)
 
-        # Verify validation was called
-        mock_is_valid.assert_called_once_with("test_client_id", "same_secret")
-
         # Verify validate_zoom_oauth_connections task was NOT triggered
         mock_validate_task.delay.assert_not_called()
 
-    @patch("bots.zoom_oauth_apps_api_utils.client_id_and_secret_is_valid")
-    def test_update_zoom_oauth_app_invalid_client_secret(self, mock_is_valid):
-        """Test update fails when new client secret is invalid."""
+    @patch("bots.zoom_oauth_apps_api_utils.validate_zoom_oauth_connections")
+    def test_update_zoom_oauth_app_client_secret_without_validating_credentials(self, mock_validate_task):
+        """Test update stores the new client secret so Zoom can validate it during OAuth callback."""
         # Create initial app
         zoom_oauth_app = ZoomOAuthApp.objects.create(project=self.project, client_id="test_client_id")
         zoom_oauth_app.set_credentials({"client_secret": "old_client_secret", "webhook_secret": "old_webhook_secret"})
 
-        mock_is_valid.return_value = False
-
-        # Try to update with invalid client secret
         updated_app, error = create_or_update_zoom_oauth_app(
             project=self.project,
             client_id="test_client_id",
@@ -200,13 +170,10 @@ class TestCreateOrUpdateZoomOAuthApp(TestCase):
             webhook_secret="",
         )
 
-        # Verify update failed
-        self.assertIsNone(updated_app)
-        self.assertIsNotNone(error)
-        self.assertIn("Invalid client secret", error)
-
-        # Verify validation was called
-        mock_is_valid.assert_called_once_with("test_client_id", "invalid_secret")
+        self.assertIsNotNone(updated_app)
+        self.assertIsNone(error)
+        self.assertEqual(updated_app.get_credentials()["client_secret"], "invalid_secret")
+        mock_validate_task.delay.assert_called_once_with(zoom_oauth_app.id)
 
     def test_update_zoom_oauth_app_webhook_secret_only(self):
         """Test updating only the webhook secret without changing client secret."""
@@ -234,11 +201,8 @@ class TestCreateOrUpdateZoomOAuthApp(TestCase):
         self.assertEqual(credentials["webhook_secret"], "new_webhook_secret")  # Updated
 
     @patch("bots.zoom_oauth_apps_api_utils.validate_zoom_oauth_connections")
-    @patch("bots.zoom_oauth_apps_api_utils.client_id_and_secret_is_valid")
-    def test_update_zoom_oauth_app_both_secrets(self, mock_is_valid, mock_validate_task):
+    def test_update_zoom_oauth_app_both_secrets(self, mock_validate_task):
         """Test updating both client_secret and webhook_secret."""
-        mock_is_valid.return_value = True
-
         # Create initial app
         zoom_oauth_app = ZoomOAuthApp.objects.create(project=self.project, client_id="test_client_id")
         zoom_oauth_app.set_credentials({"client_secret": "old_client_secret", "webhook_secret": "old_webhook_secret"})
@@ -261,9 +225,6 @@ class TestCreateOrUpdateZoomOAuthApp(TestCase):
         credentials = updated_app.get_credentials()
         self.assertEqual(credentials["client_secret"], "new_client_secret")
         self.assertEqual(credentials["webhook_secret"], "new_webhook_secret")
-
-        # Verify validation was called
-        mock_is_valid.assert_called_once_with("test_client_id", "new_client_secret")
 
         # Verify validate_zoom_oauth_connections task was triggered
         mock_validate_task.delay.assert_called_once_with(zoom_oauth_app.id)
