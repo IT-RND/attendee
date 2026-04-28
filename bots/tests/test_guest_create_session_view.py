@@ -98,6 +98,61 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertNotIn("authenticated_user_id", bot.metadata)
         mock_launch_bot.assert_not_called()
 
+    @patch("bots.projects_views.launch_bot")
+    def test_guest_scheduled_session_does_not_use_current_live_guest_limit(self, mock_launch_bot):
+        for index in range(3):
+            Bot.objects.create(
+                project=self.guest_project,
+                meeting_url=f"https://meet.google.com/live-guest-{index}",
+                name="Boga Assistant",
+                state=BotStates.JOINED_RECORDING,
+            )
+
+        join_at_datetime = timezone.localtime(timezone.now() + timedelta(hours=4))
+        end_at_datetime = join_at_datetime + timedelta(hours=1)
+        response = self.client.post(
+            self.url,
+            data={
+                "session_name": "Future guest session",
+                "meeting_url": "https://meet.google.com/future-guest-session",
+                "join_at": join_at_datetime.isoformat(),
+                "end_at": end_at_datetime.isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        bot = Bot.objects.get(object_id=response.json()["bot_id"])
+        self.assertEqual(bot.state, BotStates.SCHEDULED)
+        self.assertEqual(bot.project, self.guest_project)
+        mock_launch_bot.assert_not_called()
+
+    def test_guest_scheduled_session_enforces_overlapping_scheduled_limit(self):
+        join_at_datetime = timezone.localtime(timezone.now() + timedelta(hours=4))
+        end_at_datetime = join_at_datetime + timedelta(hours=1)
+
+        for index in range(3):
+            Bot.objects.create(
+                project=self.guest_project,
+                meeting_url=f"https://meet.google.com/scheduled-overlap-{index}",
+                name="Boga Assistant",
+                state=BotStates.SCHEDULED,
+                join_at=join_at_datetime + timedelta(minutes=index * 5),
+                metadata={"scheduled_end_at": (end_at_datetime + timedelta(minutes=index * 5)).isoformat()},
+            )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "session_name": "Blocked overlapping guest session",
+                "meeting_url": "https://meet.google.com/blocked-overlap-guest",
+                "join_at": (join_at_datetime + timedelta(minutes=10)).isoformat(),
+                "end_at": (end_at_datetime + timedelta(minutes=10)).isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("3 concurrent guest sessions", response.json()["error"])
+
     def test_guest_session_end_time_must_be_after_start_time(self):
         starts_at = timezone.localtime(timezone.now() + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M")
         ends_at = timezone.localtime(timezone.now() + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M")

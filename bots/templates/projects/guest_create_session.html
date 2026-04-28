@@ -123,17 +123,9 @@
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Meeting ends</label>
-                                <div class="row g-2">
-                                    <div class="col-sm-7">
-                                        <label for="id_end_date" class="form-label small mb-1">Tanggal selesai</label>
-                                        <input type="date" class="form-control" id="id_end_date" inputmode="none" autocomplete="off">
-                                    </div>
-                                    <div class="col-sm-5">
-                                        <label for="id_end_time" class="form-label small mb-1">Jam selesai</label>
-                                        <input type="time" class="form-control" id="id_end_time" inputmode="none" autocomplete="off" step="60">
-                                    </div>
-                                </div>
-                                <div class="form-text">Klik kolom untuk pilih dari popup. Optional, shown in the calendar schedule.</div>
+                                <label for="id_end_time" class="form-label small mb-1">Jam selesai</label>
+                                <input type="time" class="form-control" id="id_end_time" inputmode="none" autocomplete="off" step="60">
+                                <div class="form-text">Cukup pilih jam selesai. Tanggalnya akan mengikuti tanggal mulai.</div>
                             </div>
                         </div>
 
@@ -181,6 +173,18 @@
         return new Date(dateInput.value + 'T' + timeInput.value).toISOString();
     }
 
+    function buildEndIsoDateTime(joinDateInput, joinTimeInput, endTimeInput) {
+        if (!endTimeInput.value) {
+            return '';
+        }
+
+        if (!joinDateInput.value || !joinTimeInput.value) {
+            throw new Error('Meeting starts harus diisi dulu sebelum memilih jam selesai.');
+        }
+
+        return new Date(joinDateInput.value + 'T' + endTimeInput.value).toISOString();
+    }
+
     document.getElementById('scrollToGuestSessionForm').addEventListener('click', function() {
         const formCard = document.getElementById('guestSessionFormCard');
         const sessionNameInput = document.getElementById('id_session_name');
@@ -194,7 +198,6 @@
 
     setupNativePickerInput(document.getElementById('id_join_date'));
     setupNativePickerInput(document.getElementById('id_join_time'));
-    setupNativePickerInput(document.getElementById('id_end_date'));
     setupNativePickerInput(document.getElementById('id_end_time'));
 
     document.getElementById('guestSessionForm').addEventListener('submit', function(event) {
@@ -207,7 +210,6 @@
         const formData = new FormData(form);
         const joinDateInput = document.getElementById('id_join_date');
         const joinTimeInput = document.getElementById('id_join_time');
-        const endDateInput = document.getElementById('id_end_date');
         const endTimeInput = document.getElementById('id_end_time');
         const csrfToken = form.querySelector('[name=csrfmiddlewaretoken]').value;
 
@@ -218,7 +220,11 @@
 
         try {
             const joinAtValue = buildIsoDateTime(joinDateInput, joinTimeInput, 'Meeting starts');
-            const endAtValue = buildIsoDateTime(endDateInput, endTimeInput, 'Meeting ends');
+            const endAtValue = buildEndIsoDateTime(joinDateInput, joinTimeInput, endTimeInput);
+
+            if (joinAtValue && endAtValue && endAtValue <= joinAtValue) {
+                throw new Error('Meeting end time must be after the meeting start time.');
+            }
 
             if (joinAtValue) {
                 formData.set('join_at', joinAtValue);

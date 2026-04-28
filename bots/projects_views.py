@@ -1675,6 +1675,42 @@ def _guest_session_event_time_range(local_join_at, metadata):
     return f"{local_join_at.strftime('%H:%M')} - {local_end_at.strftime('%H:%M')}"
 
 
+def _guest_session_scheduled_end_at(bot):
+    raw_end_at = (bot.metadata or {}).get("scheduled_end_at")
+    if not raw_end_at:
+        return None
+
+    end_at = parse_datetime(raw_end_at)
+    if end_at is None:
+        return None
+
+    if timezone.is_naive(end_at):
+        end_at = timezone.make_aware(end_at, timezone.get_current_timezone())
+
+    return end_at
+
+
+def _guest_session_times_overlap(start_a, end_a, start_b, end_b):
+    effective_end_a = end_a or start_a
+    effective_end_b = end_b or start_b
+    return start_a < effective_end_b and start_b < effective_end_a
+
+
+def _guest_session_overlapping_scheduled_count(project, join_at, end_at):
+    scheduled_bots = (
+        Bot.objects.filter(project=project, join_at__isnull=False)
+        .exclude(state__in=BotStates.post_meeting_states())
+        .order_by("join_at")
+    )
+    overlapping_count = 0
+
+    for bot in scheduled_bots:
+        if _guest_session_times_overlap(join_at, end_at, bot.join_at, _guest_session_scheduled_end_at(bot)):
+            overlapping_count += 1
+
+    return overlapping_count
+
+
 def _parse_guest_calendar_month(raw_month):
     today = timezone.localdate()
     if not raw_month:
@@ -1786,10 +1822,22 @@ class GuestCreateSessionView(View):
                 concurrent_bots_limit = None
                 concurrency_error_message = None
                 source = BotCreationSource.DASHBOARD
+                skip_concurrency_validation = False
             else:
                 project = _guest_session_project()
-                concurrent_bots_limit = GUEST_SESSION_CONCURRENT_BOTS_LIMIT
-                concurrency_error_message = GUEST_SESSION_LIMIT_ERROR
+                if not project:
+                    return JsonResponse({"error": "Guest sessions are not configured yet because no project exists."}, status=400)
+                if join_at:
+                    overlapping_count = _guest_session_overlapping_scheduled_count(project, join_at, end_at)
+                    if overlapping_count >= GUEST_SESSION_CONCURRENT_BOTS_LIMIT:
+                        return JsonResponse({"error": GUEST_SESSION_LIMIT_ERROR}, status=400)
+                    concurrent_bots_limit = None
+                    concurrency_error_message = None
+                    skip_concurrency_validation = True
+                else:
+                    concurrent_bots_limit = GUEST_SESSION_CONCURRENT_BOTS_LIMIT
+                    concurrency_error_message = GUEST_SESSION_LIMIT_ERROR
+                    skip_concurrency_validation = False
                 source = BotCreationSource.GUEST
 
             if not project:
@@ -1818,6 +1866,7 @@ class GuestCreateSessionView(View):
                 project=project,
                 concurrent_bots_limit=concurrent_bots_limit,
                 concurrency_error_message=concurrency_error_message,
+                skip_concurrency_validation=skip_concurrency_validation,
             )
             if error:
                 return JsonResponse(error, status=400)

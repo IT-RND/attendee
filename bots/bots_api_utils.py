@@ -245,7 +245,14 @@ def validate_bot_concurrency_limit(project, concurrent_bots_limit=None, error_me
     return None
 
 
-def create_bot(data: dict, source: BotCreationSource, project: Project, concurrent_bots_limit=None, concurrency_error_message=None) -> tuple[Bot | None, dict | None]:
+def create_bot(
+    data: dict,
+    source: BotCreationSource,
+    project: Project,
+    concurrent_bots_limit=None,
+    concurrency_error_message=None,
+    skip_concurrency_validation=False,
+) -> tuple[Bot | None, dict | None]:
     # Given them a small grace period before we start rejecting requests
     if project.organization.out_of_credits():
         logger.error(f"Organization {project.organization.id} has insufficient credits. Please add credits in the Account -> Billing page.")
@@ -293,9 +300,10 @@ def create_bot(data: dict, source: BotCreationSource, project: Project, concurre
     if error:
         return None, error
 
-    error = validate_bot_concurrency_limit(project, concurrent_bots_limit=concurrent_bots_limit, error_message=concurrency_error_message)
-    if error:
-        return None, error
+    if not skip_concurrency_validation:
+        error = validate_bot_concurrency_limit(project, concurrent_bots_limit=concurrent_bots_limit, error_message=concurrency_error_message)
+        if error:
+            return None, error
 
     settings = {
         "transcription_settings": transcription_settings,
