@@ -13,10 +13,24 @@
             <div id="credentials-status">
                 {% if zoom_oauth_app %}                
                     <p>Client ID: {{ zoom_oauth_app.client_id }}</p>
+                    <p class="mb-2">
+                        OAuth Redirect URL:
+                        <code>{{ zoom_oauth_redirect_uri }}</code>
+                    </p>
+                    <button class="btn btn-outline-secondary zoom-oauth-copy-component"
+                        data-role="copy"
+                        data-value="{{ zoom_oauth_redirect_uri }}"
+                        title="Copy OAuth redirect URL to clipboard">
+                        <i class="bi bi-clipboard me-1"></i>
+                        Copy OAuth Redirect URL
+                    </button>
+                    <a class="btn btn-primary ms-2" href="{% url 'projects:project-zoom-oauth-start' project.object_id %}">
+                        Connect Zoom Account
+                    </a>
                     {% if zoom_oauth_app.zoom_oauth_connections.count > 0 %}
-                    <p>Connected Zoom accounts: {{ zoom_oauth_app.zoom_oauth_connections.count }}</p>
+                    <p class="mt-3">Connected Zoom accounts: {{ zoom_oauth_app.zoom_oauth_connections.count }}</p>
                     {% endif %}
-                    <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#zoomOAuthAppModal">
+                    <button class="btn btn-secondary mt-3" data-bs-toggle="modal" data-bs-target="#zoomOAuthAppModal">
                         Edit OAuth App
                     </button>
                     {% if zoom_oauth_app.webhook_secret %}
@@ -48,6 +62,17 @@
                     {% endif %}
                 {% else %}
                     <p>Add OAuth App needed to launch Zoom Bots.</p>
+                    <p class="mb-2">
+                        Use this OAuth Redirect URL in the Zoom Developer Portal:
+                        <code>{{ zoom_oauth_redirect_uri }}</code>
+                    </p>
+                    <button class="btn btn-outline-secondary zoom-oauth-copy-component me-2"
+                        data-role="copy"
+                        data-value="{{ zoom_oauth_redirect_uri }}"
+                        title="Copy OAuth redirect URL to clipboard">
+                        <i class="bi bi-clipboard me-1"></i>
+                        Copy OAuth Redirect URL
+                    </button>
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#zoomOAuthAppModal">
                         Add OAuth App
                     </button>

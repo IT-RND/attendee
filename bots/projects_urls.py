@@ -17,6 +17,11 @@ urlpatterns = [
         name="project-google-calendar-oauth-callback",
     ),
     path(
+        "zoom/oauth/callback",
+        projects_views.ZoomOAuthCallbackView.as_view(),
+        name="project-zoom-oauth-callback",
+    ),
+    path(
         "create/",
         projects_views.CreateProjectView.as_view(),
         name="create-project",
@@ -170,6 +175,11 @@ urlpatterns = [
         "<str:object_id>/settings/zoom-oauth-app/delete/",
         projects_views.DeleteZoomOAuthAppView.as_view(),
         name="delete-zoom-oauth-app",
+    ),
+    path(
+        "<str:object_id>/settings/zoom-oauth/connect/",
+        projects_views.StartZoomOAuthView.as_view(),
+        name="project-zoom-oauth-start",
     ),
     path(
         "<str:object_id>/settings/credentials/",

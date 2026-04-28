@@ -88,6 +88,13 @@ from .storage import remote_storage_url
 from .stripe_utils import credit_amount_for_purchase_amount_dollars, process_checkout_session_completed
 from .tasks.deliver_webhook_task import deliver_webhook
 from .utils import generate_recordings_json_for_bot_detail_view
+from .zoom_oauth import (
+    ZoomOAuthError,
+    build_zoom_oauth_authorize_url,
+    connect_zoom_oauth_connection,
+    get_zoom_oauth_state_data,
+    zoom_oauth_redirect_uri,
+)
 from .zoom_oauth_apps_api_utils import create_or_update_zoom_oauth_app
 
 logger = logging.getLogger(__name__)
@@ -287,6 +294,7 @@ class ProjectUrlContextMixin:
             "UserRole": UserRole,
             "user_can_manage_sensitive_integrations": user_can_manage_sensitive_integrations(self.request.user),
             "debug_mode": True if settings.DEBUG else False,
+            "zoom_oauth_redirect_uri": zoom_oauth_redirect_uri(),
         }
 
 
@@ -434,6 +442,53 @@ class GoogleCalendarOAuthCallbackView(MeetingCreatorSensitiveIntegrationsDeniedM
 
         success_message = f"Connected Google Calendar for {calendar.deduplication_key}."
         return redirect(f"{calendars_url}?{urlencode({'google_calendar_success': success_message})}")
+
+
+class StartZoomOAuthView(MeetingCreatorSensitiveIntegrationsDeniedMixin, View):
+    def get(self, request, object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        credentials_url = reverse("projects:project-credentials", kwargs={"object_id": project.object_id})
+
+        try:
+            return redirect(build_zoom_oauth_authorize_url(project))
+        except ZoomOAuthError as exc:
+            return redirect(f"{credentials_url}?{urlencode({'zoom_oauth_error': str(exc)})}")
+
+
+class ZoomOAuthCallbackView(MeetingCreatorSensitiveIntegrationsDeniedMixin, View):
+    def get(self, request):
+        state = request.GET.get("state")
+        if not state:
+            return HttpResponse("Missing Zoom OAuth state.", status=400)
+
+        try:
+            state_data = get_zoom_oauth_state_data(state)
+            project = get_project_for_user(user=request.user, project_object_id=state_data["project_object_id"])
+        except ZoomOAuthError as exc:
+            return HttpResponse(str(exc), status=400)
+
+        credentials_url = reverse("projects:project-credentials", kwargs={"object_id": project.object_id})
+
+        zoom_error = request.GET.get("error")
+        if zoom_error:
+            error_description = request.GET.get("error_description") or zoom_error.replace("_", " ")
+            return redirect(f"{credentials_url}?{urlencode({'zoom_oauth_error': error_description})}")
+
+        authorization_code = request.GET.get("code")
+        if not authorization_code:
+            return redirect(f"{credentials_url}?{urlencode({'zoom_oauth_error': 'Zoom did not return an authorization code.'})}")
+
+        try:
+            zoom_oauth_connection = connect_zoom_oauth_connection(
+                project=project,
+                authorization_code=authorization_code,
+                state_data=state_data,
+            )
+        except ZoomOAuthError as exc:
+            return redirect(f"{credentials_url}?{urlencode({'zoom_oauth_error': str(exc)})}")
+
+        success_message = f"Connected Zoom account {zoom_oauth_connection.user_id}."
+        return redirect(f"{credentials_url}?{urlencode({'zoom_oauth_success': success_message})}")
 
 
 class CreateCredentialsView(MeetingCreatorSensitiveIntegrationsDeniedMixin, ProjectUrlContextMixin, View):
@@ -598,6 +653,9 @@ class ProjectCredentialsView(MeetingCreatorSensitiveIntegrationsDeniedMixin, Pro
         context.update(
             {
                 "zoom_oauth_app": zoom_oauth_app,
+                "zoom_oauth_redirect_uri": zoom_oauth_redirect_uri(),
+                "zoom_oauth_success": request.GET.get("zoom_oauth_success"),
+                "zoom_oauth_error": request.GET.get("zoom_oauth_error"),
                 "google_meet_bot_login_group": google_meet_bot_login_group,
                 "zoom_credentials": zoom_credentials.get_credentials() if zoom_credentials else None,
                 "zoom_credential_type": Credentials.CredentialTypes.ZOOM_OAUTH,
