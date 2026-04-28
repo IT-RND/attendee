@@ -1,146 +1,622 @@
 {% extends 'base.html' %}
 
 {% block body_content %}
-<div class="auth-shell py-5">
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-lg-10 col-xl-9">
-            <!-- <div class="card auth-card shadow-lg border-0 rounded-4 mb-4">
-                <div class="card-body p-4 p-md-5">
-                    <div class="text-center">
-                        <span class="badge rounded-pill text-bg-danger-subtle border border-danger-subtle text-danger mb-3">Boga Guest Access</span>
-                        <h1 class="h2 auth-title mb-2">Boga Meeting Assistant</h1>
-                        <p class="text-muted mb-3">Guest can create a meeting session without an account.</p>
-                    </div>
-                    <div class="auth-link-row mt-3">
-                        <div class="auth-whisper">
-                            Invited users:
-                            <a href="{% url 'account_login' %}" class="auth-subtle-link">sign in</a>
-                            /
-                            <a href="{% url 'account_signup' %}" class="auth-subtle-link">sign up</a>
-                        </div>
+<style>
+    .guest-invitation-shell {
+        min-height: 100vh;
+        background:
+            radial-gradient(circle at top left, rgba(180, 35, 24, 0.14), transparent 34rem),
+            linear-gradient(135deg, #fff8f5 0%, #ffffff 44%, #f7f8fb 100%);
+        padding: 32px 14px;
+    }
+
+    .guest-invitation-panel {
+        max-width: 720px;
+        margin: 0 auto;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 22px;
+        padding: 26px 28px 30px;
+        color: #111827;
+        font-family: Inter, Arial, Helvetica, sans-serif;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.14);
+        backdrop-filter: blur(12px);
+    }
+
+    .guest-invitation-title {
+        margin: 0 0 28px;
+        text-align: center;
+        font-size: clamp(24px, 4vw, 34px);
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.03em;
+        color: #4a1511;
+    }
+
+    .guest-form-table,
+    .guest-meetings-table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    .guest-form-table {
+        max-width: 560px;
+        margin: 0 0 30px;
+    }
+
+    .guest-form-table th {
+        width: 160px;
+        padding: 8px 14px 8px 0;
+        text-align: left;
+        vertical-align: middle;
+        font-size: 15px;
+        font-weight: 700;
+        white-space: nowrap;
+        color: #374151;
+    }
+
+    .guest-form-table td {
+        padding: 5px 0;
+        vertical-align: middle;
+    }
+
+    .guest-input {
+        width: 100%;
+        height: 42px;
+        border: 1px solid #d8dee8;
+        border-radius: 12px;
+        padding: 8px 12px;
+        font: inherit;
+        color: #111827;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+    }
+
+    .guest-input:focus {
+        border-color: #b42318;
+        box-shadow: 0 0 0 4px rgba(180, 35, 24, 0.12);
+        outline: none;
+    }
+
+    .guest-time-separator {
+        width: 44px;
+        text-align: center;
+        color: #6b7280;
+        font-weight: 600;
+    }
+
+    .guest-submit {
+        width: 148px;
+        height: 42px;
+        border: 0;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #b42318 0%, #de4a3f 100%);
+        color: #fff;
+        font-weight: 700;
+        line-height: 1;
+        box-shadow: 0 12px 24px rgba(180, 35, 24, 0.24);
+        transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+    }
+
+    .guest-submit:hover,
+    .guest-submit:focus {
+        box-shadow: 0 16px 32px rgba(180, 35, 24, 0.28);
+        transform: translateY(-1px);
+    }
+
+    .guest-submit:disabled {
+        opacity: 0.72;
+        transform: none;
+    }
+
+    .guest-alert {
+        max-width: 560px;
+        margin: 0 0 16px 160px;
+        padding: 10px 12px;
+        border: 1px solid transparent;
+        border-radius: 12px;
+        font-size: 14px;
+    }
+
+    .guest-alert-danger {
+        background: #fff1f1;
+        border-color: #fecaca;
+        color: #8f1c14;
+    }
+
+    .guest-alert-success {
+        background: #f0fdf4;
+        border-color: #bbf7d0;
+        color: #155724;
+    }
+
+    .guest-meetings-table th,
+    .guest-meetings-table td {
+        border: 1px solid #e5e7eb;
+        padding: 12px 14px;
+        height: 46px;
+        font-size: 15px;
+        vertical-align: middle;
+    }
+
+    .guest-meetings-table th {
+        background: #fff4e5;
+        font-weight: 700;
+        text-align: center;
+        color: #4a1511;
+    }
+
+    .guest-meetings-table td {
+        text-align: center;
+        background: #fff;
+    }
+
+    .guest-meetings-table tbody tr {
+        transition: transform 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .guest-meetings-table tbody tr:hover td {
+        background: #fffaf5;
+    }
+
+    .guest-meeting-name {
+        text-align: left;
+        font-weight: 600;
+        color: #111827;
+    }
+
+    .guest-download-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 38px;
+        width: 38px;
+        height: 34px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        color: #b42318;
+        background: #fff1f0;
+        text-decoration: none;
+        white-space: nowrap;
+        font-weight: 700;
+        font-size: 13px;
+        transition: background-color 0.16s ease, color 0.16s ease;
+    }
+
+    .guest-download-link:hover,
+    .guest-download-link:focus {
+        color: #fff;
+        background: #b42318;
+        text-decoration: none;
+    }
+
+    .guest-download-disabled {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 38px;
+        width: 38px;
+        height: 34px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #f3f4f6;
+        color: #9ca3af;
+        cursor: not-allowed;
+        white-space: nowrap;
+        font-weight: 700;
+        font-size: 13px;
+    }
+
+    .guest-download-icon {
+        margin-right: 0;
+    }
+
+    .guest-status-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 92px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        color: #4a1511;
+        background: #fff4e5;
+        font-size: 13px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .guest-session-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        min-width: 92px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        color: #1d4ed8;
+        background: #eff6ff;
+        font-size: 13px;
+        font-weight: 800;
+        text-decoration: none;
+        white-space: nowrap;
+        transition: background-color 0.16s ease, color 0.16s ease;
+    }
+
+    .guest-session-link:hover,
+    .guest-session-link:focus {
+        color: #fff;
+        background: #1d4ed8;
+        text-decoration: none;
+    }
+
+    .guest-meeting-time {
+        display: block;
+        margin-top: 2px;
+        font-size: 12px;
+        line-height: 1.2;
+        color: #6b7280;
+    }
+
+    .guest-pagination {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 18px;
+        flex-wrap: wrap;
+    }
+
+    .guest-pagination-link,
+    .guest-pagination-current,
+    .guest-pagination-disabled {
+        min-width: 38px;
+        height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 0 14px;
+        font-size: 14px;
+        font-weight: 700;
+        text-decoration: none;
+    }
+
+    .guest-pagination-link {
+        border: 1px solid #e5e7eb;
+        color: #374151;
+        background: #fff;
+        transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
+    }
+
+    .guest-pagination-link:hover,
+    .guest-pagination-link:focus {
+        border-color: #b42318;
+        color: #b42318;
+        background: #fff1f0;
+        text-decoration: none;
+    }
+
+    .guest-pagination-current {
+        color: #fff;
+        background: #b42318;
+        box-shadow: 0 10px 20px rgba(180, 35, 24, 0.22);
+    }
+
+    .guest-pagination-disabled {
+        color: #c4c9d4;
+        background: #f3f4f6;
+        cursor: not-allowed;
+    }
+
+    .guest-confirm-icon {
+        width: 52px;
+        height: 52px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 18px;
+        background: #fff1f0;
+        color: #b42318;
+        font-size: 26px;
+    }
+
+    .guest-confirm-platform {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: 14px;
+        font-weight: 800;
+    }
+
+    .guest-platform-google {
+        background: #e8f0fe;
+        color: #1a73e8;
+    }
+
+    .guest-platform-zoom {
+        background: #eff6ff;
+        color: #2563eb;
+    }
+
+    .guest-platform-teams {
+        background: #eef2ff;
+        color: #4f46e5;
+    }
+
+    .guest-platform-generic {
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+    .guest-confirm-list {
+        display: grid;
+        gap: 12px;
+        margin-top: 18px;
+    }
+
+    .guest-confirm-item {
+        padding: 12px 14px;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        background: #f9fafb;
+    }
+
+    .guest-confirm-label {
+        display: block;
+        margin-bottom: 3px;
+        color: #6b7280;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .guest-confirm-value {
+        color: #111827;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 640px) {
+        .guest-invitation-shell {
+            padding: 16px 10px;
+        }
+
+        .guest-invitation-panel {
+            border-radius: 18px;
+            padding: 20px 14px 22px;
+        }
+
+        .guest-form-table,
+        .guest-form-table tbody,
+        .guest-form-table tr,
+        .guest-form-table th,
+        .guest-form-table td {
+            display: block;
+            width: 100%;
+        }
+
+        .guest-form-table th {
+            padding: 10px 0 4px;
+        }
+
+        .guest-time-separator {
+            display: inline-block;
+            width: 100%;
+            padding: 2px 0;
+        }
+
+        .guest-alert {
+            margin-left: 0;
+        }
+
+        .guest-meetings-table th,
+        .guest-meetings-table td {
+            padding: 10px 8px;
+            font-size: 13px;
+        }
+
+        .guest-pagination-link,
+        .guest-pagination-current,
+        .guest-pagination-disabled {
+            min-width: 34px;
+            height: 34px;
+            padding: 0 10px;
+            font-size: 13px;
+        }
+
+        .guest-confirm-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 16px;
+            font-size: 23px;
+        }
+    }
+</style>
+
+<div class="guest-invitation-shell">
+    <div class="guest-invitation-panel">
+        <h1 class="guest-invitation-title">Boga Assistant Meeting Invitation</h1>
+
+        <form id="guestSessionForm" action="{% url 'projects:guest-create-session' %}" method="post">
+            {% csrf_token %}
+
+            <table class="guest-form-table" aria-label="Boga Assistant meeting invitation form">
+                <tbody>
+                    <tr>
+                        <th scope="row"><label for="id_session_name">Nama Meeting</label></th>
+                        <td colspan="3">
+                            <input type="text" class="guest-input" id="id_session_name" name="session_name" maxlength="255" required>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="id_join_date">Tanggal Meeting</label></th>
+                        <td colspan="3">
+                            <input type="date" class="guest-input" id="id_join_date" inputmode="none" autocomplete="off" required>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="id_join_time">Jam Meeting</label></th>
+                        <td>
+                            <input type="time" class="guest-input" id="id_join_time" inputmode="none" autocomplete="off" step="60" required>
+                        </td>
+                        <td class="guest-time-separator">s/d</td>
+                        <td>
+                            <input type="time" class="guest-input" id="id_end_time" inputmode="none" autocomplete="off" step="60" required>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="id_meeting_url">Link Meeting</label></th>
+                        <td colspan="3">
+                            <input type="url" class="guest-input" id="id_meeting_url" name="meeting_url" required>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"></th>
+                        <td colspan="3">
+                            <button type="submit" id="guestSessionSubmit" class="guest-submit">Submit</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div id="guestSessionError" class="guest-alert guest-alert-danger d-none"></div>
+            <div id="guestSessionSuccess" class="guest-alert guest-alert-success d-none"></div>
+        </form>
+
+        <table class="guest-meetings-table" aria-label="Boga Assistant meeting downloads">
+            <thead>
+                <tr>
+                    <th scope="col">Tanggal Meeting</th>
+                    <th scope="col">Nama Meeting</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Session</th>
+                    <th scope="col" colspan="2">Download</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for meeting in guest_session_meetings %}
+                <tr>
+                    <td>
+                        {{ meeting.date }}
+                        <span class="guest-meeting-time">{{ meeting.time }}</span>
+                    </td>
+                    <td class="guest-meeting-name">{{ meeting.name }}</td>
+                    <td><span class="guest-status-badge">{{ meeting.status }}</span></td>
+                    <td>
+                        <a class="guest-session-link" href="{{ meeting.session_url }}" target="_blank" rel="noopener">
+                            <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Open
+                        </a>
+                    </td>
+                    <td>
+                        {% if meeting.downloads_available and meeting.docx_url %}
+                        <a class="guest-download-link" href="{{ meeting.docx_url }}" aria-label="Download Word" title="Download Word">
+                            <i class="bi bi-file-earmark-word guest-download-icon" aria-hidden="true"></i>
+                        </a>
+                        {% else %}
+                        <span class="guest-download-disabled" aria-label="Word belum tersedia" title="Word belum tersedia">
+                            <i class="bi bi-file-earmark-word guest-download-icon" aria-hidden="true"></i>
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if meeting.downloads_available and meeting.pdf_url %}
+                        <a class="guest-download-link" href="{{ meeting.pdf_url }}" aria-label="Download PDF" title="Download PDF">
+                            <i class="bi bi-file-earmark-pdf guest-download-icon" aria-hidden="true"></i>
+                        </a>
+                        {% else %}
+                        <span class="guest-download-disabled" aria-label="PDF belum tersedia" title="PDF belum tersedia">
+                            <i class="bi bi-file-earmark-pdf guest-download-icon" aria-hidden="true"></i>
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td>&nbsp;</td>
+                    <td class="guest-meeting-name">&nbsp;</td>
+                    <td><span class="guest-status-badge">-</span></td>
+                    <td><span class="guest-download-disabled">Open</span></td>
+                    <td><span class="guest-download-disabled" aria-label="Word belum tersedia" title="Word belum tersedia"><i class="bi bi-file-earmark-word guest-download-icon" aria-hidden="true"></i></span></td>
+                    <td><span class="guest-download-disabled" aria-label="PDF belum tersedia" title="PDF belum tersedia"><i class="bi bi-file-earmark-pdf guest-download-icon" aria-hidden="true"></i></span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if guest_session_meetings_page.paginator.num_pages > 1 %}
+        <nav class="guest-pagination" aria-label="Meeting table pagination">
+            {% if guest_session_meetings_page.has_previous %}
+            <a class="guest-pagination-link" href="?page={{ guest_session_meetings_page.previous_page_number }}" aria-label="Previous page">Prev</a>
+            {% else %}
+            <span class="guest-pagination-disabled" aria-disabled="true">Prev</span>
+            {% endif %}
+
+            {% for page_number in guest_session_meetings_page.paginator.page_range %}
+                {% if page_number == guest_session_meetings_page.number %}
+                <span class="guest-pagination-current" aria-current="page">{{ page_number }}</span>
+                {% else %}
+                <a class="guest-pagination-link" href="?page={{ page_number }}">{{ page_number }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if guest_session_meetings_page.has_next %}
+            <a class="guest-pagination-link" href="?page={{ guest_session_meetings_page.next_page_number }}" aria-label="Next page">Next</a>
+            {% else %}
+            <span class="guest-pagination-disabled" aria-disabled="true">Next</span>
+            {% endif %}
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<div class="modal fade" id="guestSessionConfirmModal" tabindex="-1" aria-labelledby="guestSessionConfirmTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="guest-confirm-icon">
+                        <i id="guestSessionConfirmPlatformIcon" class="bi bi-link-45deg" aria-hidden="true"></i>
+                    </span>
+                    <div>
+                        <h2 class="modal-title h5 fw-bold mb-1" id="guestSessionConfirmTitle">Konfirmasi Meeting</h2>
+                        <span id="guestSessionConfirmPlatform" class="guest-confirm-platform guest-platform-generic">
+                            <i class="bi bi-link-45deg" aria-hidden="true"></i>
+                            <span id="guestSessionConfirmPlatformName">Meeting Link</span>
+                        </span>
                     </div>
                 </div>
-            </div> -->
-
-            <div class="card auth-card shadow-sm border-0 rounded-4">
-                <div class="card-body p-4">
-                    <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
-                        <div>
-                            <h2 class="h5 mb-1">Scheduled Meetings</h2>
-                            <p class="text-muted small mb-0">Meeting yang sudah dijadwalkan tampil di kalender ini.</p>
-                        </div>
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <button type="button" id="scrollToGuestSessionForm" class="btn btn-primary btn-sm">
-                                Tambah Session
-                            </button>
-                            <div class="btn-group btn-group-sm" role="group" aria-label="Calendar navigation">
-                                <a class="btn btn-outline-secondary" href="?month={{ previous_calendar_month }}">Previous</a>
-                                <a class="btn btn-outline-secondary" href="?month={{ next_calendar_month }}">Next</a>
-                            </div>
-                        </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-3">
+                <div class="guest-confirm-list">
+                    <div class="guest-confirm-item">
+                        <span class="guest-confirm-label">Nama Meeting</span>
+                        <span id="guestSessionConfirmName" class="guest-confirm-value"></span>
                     </div>
-
-                    <h3 class="h6 text-center mb-3">{{ calendar_month_label }}</h3>
-
-                    <div class="table-responsive">
-                        <table class="table table-bordered align-top calendar-table mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Mon</th>
-                                    <th>Tue</th>
-                                    <th>Wed</th>
-                                    <th>Thu</th>
-                                    <th>Fri</th>
-                                    <th>Sat</th>
-                                    <th>Sun</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for week in calendar_weeks %}
-                                <tr>
-                                    {% for day in week %}
-                                    <td class="{% if not day.in_month %}bg-light text-muted{% endif %}" style="min-width: 120px; height: 120px;">
-                                        <div class="fw-semibold small mb-2">{{ day.day }}</div>
-                                        {% for event in day.events %}
-                                        <div class="border rounded p-2 mb-2 bg-primary-subtle small">
-                                            <div class="fw-semibold">{{ event.time }} - {{ event.name }}</div>
-                                            <div class="text-muted">{{ event.status }}</div>
-                                        </div>
-                                        {% endfor %}
-                                    </td>
-                                    {% endfor %}
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div class="guest-confirm-item">
+                        <span class="guest-confirm-label">Hari & Tanggal</span>
+                        <span id="guestSessionConfirmDate" class="guest-confirm-value"></span>
                     </div>
-
-                    {% if not has_scheduled_sessions %}
-                    <div class="text-center text-muted py-3">
-                        Belum ada meeting terjadwal bulan ini.
+                    <div class="guest-confirm-item">
+                        <span class="guest-confirm-label">Jam Meeting</span>
+                        <span id="guestSessionConfirmTime" class="guest-confirm-value"></span>
                     </div>
-                    {% endif %}
+                    <div class="guest-confirm-item">
+                        <span class="guest-confirm-label">Link Meeting</span>
+                        <span id="guestSessionConfirmLink" class="guest-confirm-value"></span>
+                    </div>
                 </div>
             </div>
-
-            <div id="guestSessionFormCard" class="card auth-card shadow-sm border-0 rounded-4 mt-4">
-                <div class="card-body p-4">
-                    <h2 class="h5 mb-3">Create Guest Session</h2>
-                    <div class="alert alert-info">
-                        Guests can run up to <strong>{{ guest_limit }}</strong> concurrent sessions. No account or token is required.
-                    </div>
-
-                    <form id="guestSessionForm" action="{% url 'projects:guest-create-session' %}" method="post">
-                        {% csrf_token %}
-
-                        <div class="mb-3">
-                            <label for="id_session_name" class="form-label">Session name</label>
-                            <input type="text" class="form-control" id="id_session_name" name="session_name" maxlength="255" placeholder="Weekly sales sync" required>
-                            <div class="form-text">This name is saved with the session details. The bot still joins as Boga Assistant.</div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="id_meeting_url" class="form-label">Meeting link</label>
-                            <input type="url" class="form-control" id="id_meeting_url" name="meeting_url" placeholder="https://meet.google.com/abc-defg-hij" required>
-                            <div class="form-text">Supports Google Meet, Zoom, and Microsoft Teams links.</div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Meeting starts</label>
-                                <div class="row g-2">
-                                    <div class="col-sm-7">
-                                        <label for="id_join_date" class="form-label small mb-1">Tanggal mulai</label>
-                                        <input type="date" class="form-control" id="id_join_date" inputmode="none" autocomplete="off">
-                                    </div>
-                                    <div class="col-sm-5">
-                                        <label for="id_join_time" class="form-label small mb-1">Jam mulai</label>
-                                        <input type="time" class="form-control" id="id_join_time" inputmode="none" autocomplete="off" step="60">
-                                    </div>
-                                </div>
-                                <div class="form-text">Klik kolom untuk langsung pilih tanggal dan jam dari popup. Leave blank if Boga Assistant should join immediately.</div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Meeting ends</label>
-                                <label for="id_end_time" class="form-label small mb-1">Jam selesai</label>
-                                <input type="time" class="form-control" id="id_end_time" inputmode="none" autocomplete="off" step="60">
-                                <div class="form-text">Cukup pilih jam selesai. Tanggalnya akan mengikuti tanggal mulai.</div>
-                            </div>
-                        </div>
-
-                        <div id="guestSessionError" class="alert alert-danger d-none"></div>
-                        <div id="guestSessionSuccess" class="alert alert-success d-none"></div>
-
-                        <button type="submit" id="guestSessionSubmit" class="btn btn-primary w-100">
-                            Create Session
-                        </button>
-                    </form>
-                </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">Batal</button>
+                <button type="button" id="guestSessionConfirmSubmit" class="btn btn-primary rounded-pill px-4 fw-semibold">Buat Session</button>
             </div>
         </div>
     </div>
-</div>
 </div>
 
 <script>
@@ -185,32 +661,170 @@
         return new Date(joinDateInput.value + 'T' + endTimeInput.value).toISOString();
     }
 
-    document.getElementById('scrollToGuestSessionForm').addEventListener('click', function() {
-        const formCard = document.getElementById('guestSessionFormCard');
-        const sessionNameInput = document.getElementById('id_session_name');
+    function detectMeetingPlatform(meetingUrl) {
+        const normalizedUrl = meetingUrl.toLowerCase();
 
-        formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (normalizedUrl.includes('meet.google.com')) {
+            return {
+                name: 'Google Meet',
+                icon: 'bi-google',
+                badgeClass: 'guest-platform-google'
+            };
+        }
 
-        window.setTimeout(function() {
-            sessionNameInput.focus();
-        }, 300);
-    });
+        if (normalizedUrl.includes('zoom.us') || normalizedUrl.includes('zoom.com')) {
+            return {
+                name: 'Zoom',
+                icon: 'bi-camera-video-fill',
+                badgeClass: 'guest-platform-zoom'
+            };
+        }
+
+        if (normalizedUrl.includes('teams.microsoft.com') || normalizedUrl.includes('teams.live.com')) {
+            return {
+                name: 'Microsoft Teams',
+                icon: 'bi-microsoft',
+                badgeClass: 'guest-platform-teams'
+            };
+        }
+
+        return {
+            name: 'Meeting Link',
+            icon: 'bi-link-45deg',
+            badgeClass: 'guest-platform-generic'
+        };
+    }
+
+    function formatMeetingDate(dateValue) {
+        const date = new Date(dateValue + 'T00:00:00');
+        return new Intl.DateTimeFormat('id-ID', {
+            weekday: 'long',
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric'
+        }).format(date);
+    }
+
+    function populateGuestSessionConfirmation(details) {
+        const platform = detectMeetingPlatform(details.meetingUrl);
+        const platformIcon = document.getElementById('guestSessionConfirmPlatformIcon');
+        const platformBadge = document.getElementById('guestSessionConfirmPlatform');
+        const platformName = document.getElementById('guestSessionConfirmPlatformName');
+
+        platformIcon.className = 'bi ' + platform.icon;
+        platformBadge.className = 'guest-confirm-platform ' + platform.badgeClass;
+        platformBadge.querySelector('i').className = 'bi ' + platform.icon;
+        platformName.textContent = platform.name;
+
+        document.getElementById('guestSessionConfirmName').textContent = details.sessionName;
+        document.getElementById('guestSessionConfirmDate').textContent = formatMeetingDate(details.joinDate);
+        document.getElementById('guestSessionConfirmTime').textContent = details.joinTime + ' s/d ' + details.endTime;
+        document.getElementById('guestSessionConfirmLink').textContent = details.meetingUrl;
+    }
+
+    function showGuestSessionConfirmation(details) {
+        populateGuestSessionConfirmation(details);
+
+        const modalElement = document.getElementById('guestSessionConfirmModal');
+        if (window.bootstrap && window.bootstrap.Modal) {
+            window.bootstrap.Modal.getOrCreateInstance(modalElement).show();
+            return;
+        }
+
+        if (window.confirm('Buat session untuk ' + details.sessionName + ' pada ' + formatMeetingDate(details.joinDate) + ' jam ' + details.joinTime + ' s/d ' + details.endTime + '?')) {
+            submitPendingGuestSession();
+        }
+    }
+
+    let pendingGuestSessionSubmission = null;
 
     setupNativePickerInput(document.getElementById('id_join_date'));
     setupNativePickerInput(document.getElementById('id_join_time'));
     setupNativePickerInput(document.getElementById('id_end_time'));
 
+    function submitGuestSession(form, formData, csrfToken) {
+        const submitButton = document.getElementById('guestSessionSubmit');
+        const confirmSubmitButton = document.getElementById('guestSessionConfirmSubmit');
+        const errorContainer = document.getElementById('guestSessionError');
+        const successContainer = document.getElementById('guestSessionSuccess');
+
+        submitButton.disabled = true;
+        confirmSubmitButton.disabled = true;
+        submitButton.textContent = 'Submitting...';
+        confirmSubmitButton.textContent = 'Submitting...';
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(function(response) {
+            return response.json().then(function(payload) {
+                if (!response.ok) {
+                    throw payload;
+                }
+                return payload;
+            });
+        })
+        .then(function(payload) {
+            const link = document.createElement('a');
+            link.href = payload.session_url;
+            link.textContent = 'Buka halaman session';
+            link.target = '_blank';
+            link.rel = 'noopener';
+
+            successContainer.textContent = payload.message + ' ';
+            successContainer.appendChild(link);
+            successContainer.classList.remove('d-none');
+            form.reset();
+        })
+        .catch(function(error) {
+            errorContainer.textContent = error.error || JSON.stringify(error);
+            errorContainer.classList.remove('d-none');
+        })
+        .finally(function() {
+            submitButton.disabled = false;
+            confirmSubmitButton.disabled = false;
+            submitButton.textContent = 'Submit';
+            confirmSubmitButton.textContent = 'Buat Session';
+            pendingGuestSessionSubmission = null;
+
+            const modalElement = document.getElementById('guestSessionConfirmModal');
+            if (window.bootstrap && window.bootstrap.Modal) {
+                window.bootstrap.Modal.getOrCreateInstance(modalElement).hide();
+            }
+        });
+    }
+
+    function submitPendingGuestSession() {
+        if (!pendingGuestSessionSubmission) {
+            return;
+        }
+
+        submitGuestSession(
+            pendingGuestSessionSubmission.form,
+            pendingGuestSessionSubmission.formData,
+            pendingGuestSessionSubmission.csrfToken
+        );
+    }
+
+    document.getElementById('guestSessionConfirmSubmit').addEventListener('click', submitPendingGuestSession);
+
     document.getElementById('guestSessionForm').addEventListener('submit', function(event) {
         event.preventDefault();
 
         const form = event.currentTarget;
-        const submitButton = document.getElementById('guestSessionSubmit');
         const errorContainer = document.getElementById('guestSessionError');
         const successContainer = document.getElementById('guestSessionSuccess');
         const formData = new FormData(form);
         const joinDateInput = document.getElementById('id_join_date');
         const joinTimeInput = document.getElementById('id_join_time');
         const endTimeInput = document.getElementById('id_end_time');
+        const sessionNameInput = document.getElementById('id_session_name');
+        const meetingUrlInput = document.getElementById('id_meeting_url');
         const csrfToken = form.querySelector('[name=csrfmiddlewaretoken]').value;
 
         errorContainer.classList.add('d-none');
@@ -243,44 +857,18 @@
             return;
         }
 
-        submitButton.disabled = true;
-        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
+        pendingGuestSessionSubmission = {
+            form: form,
+            formData: formData,
+            csrfToken: csrfToken
+        };
 
-        fetch(form.action, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': csrfToken,
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: formData
-        })
-        .then(function(response) {
-            return response.json().then(function(payload) {
-                if (!response.ok) {
-                    throw payload;
-                }
-                return payload;
-            });
-        })
-        .then(function(payload) {
-            const link = document.createElement('a');
-            link.href = payload.session_url;
-            link.textContent = 'Open session page';
-            link.target = '_blank';
-            link.rel = 'noopener';
-
-            successContainer.textContent = payload.message + ' ';
-            successContainer.appendChild(link);
-            successContainer.classList.remove('d-none');
-            form.reset();
-        })
-        .catch(function(error) {
-            errorContainer.textContent = error.error || JSON.stringify(error);
-            errorContainer.classList.remove('d-none');
-        })
-        .finally(function() {
-            submitButton.disabled = false;
-            submitButton.textContent = 'Create Session';
+        showGuestSessionConfirmation({
+            sessionName: sessionNameInput.value.trim(),
+            meetingUrl: meetingUrlInput.value.trim(),
+            joinDate: joinDateInput.value,
+            joinTime: joinTimeInput.value,
+            endTime: endTimeInput.value
         });
     });
 </script>

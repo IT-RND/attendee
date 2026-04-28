@@ -12,6 +12,7 @@ from allauth.account.utils import send_email_confirmation
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.http import HttpResponse, JsonResponse, QueryDict, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -92,6 +93,7 @@ from .zoom_oauth_apps_api_utils import create_or_update_zoom_oauth_app
 logger = logging.getLogger(__name__)
 
 GUEST_SESSION_CONCURRENT_BOTS_LIMIT = 3
+GUEST_SESSION_MEETINGS_PAGE_SIZE = 6
 GUEST_SESSION_LIMIT_ERROR = (
     "Boga Assistant cannot join right now because there are already 3 concurrent guest sessions. "
     "Sign in to use your account limit or try again when one session ends."
@@ -1780,6 +1782,48 @@ def _guest_session_calendar(project, raw_month):
     }
 
 
+def _guest_session_meeting_rows(project, raw_page):
+    if not project:
+        page = Paginator([], GUEST_SESSION_MEETINGS_PAGE_SIZE).get_page(raw_page)
+        return [], page
+
+    bots_queryset = (
+        Bot.objects.filter(project=project)
+        .exclude(state=BotStates.DATA_DELETED)
+        .order_by("-join_at", "-created_at")
+    )
+    page = Paginator(bots_queryset, GUEST_SESSION_MEETINGS_PAGE_SIZE).get_page(raw_page)
+
+    rows = []
+    for bot in page.object_list:
+        metadata = bot.metadata or {}
+        meeting_at = bot.join_at or bot.created_at
+        local_meeting_at = timezone.localtime(meeting_at)
+        summary_urls = None
+        if bot.mom_guest_token:
+            summary_urls = guest_summary_api_urls(
+                project.object_id,
+                bot.object_id,
+                bot.mom_guest_token,
+                expect_app_session=False,
+            )
+
+        rows.append(
+            {
+                "date": local_meeting_at.strftime("%d %b %Y"),
+                "time": _guest_session_event_time_range(local_meeting_at, metadata),
+                "name": metadata.get("session_name") or bot.name,
+                "status": BotStates(bot.state).label,
+                "session_url": guest_mom_page_absolute_url(bot),
+                "docx_url": summary_urls["docx"] if summary_urls else "",
+                "pdf_url": summary_urls["pdf"] if summary_urls else "",
+                "downloads_available": bool((bot.meeting_summary or "").strip() or bot.meeting_summary_pdf),
+            }
+        )
+
+    return rows, page
+
+
 class GuestCreateSessionView(View):
     template_name = "projects/guest_create_session.html"
 
@@ -1789,6 +1833,9 @@ class GuestCreateSessionView(View):
             "guest_limit": GUEST_SESSION_CONCURRENT_BOTS_LIMIT,
         }
         context.update(_guest_session_calendar(project, request.GET.get("month")))
+        guest_session_meetings, guest_session_meetings_page = _guest_session_meeting_rows(project, request.GET.get("page"))
+        context["guest_session_meetings"] = guest_session_meetings
+        context["guest_session_meetings_page"] = guest_session_meetings_page
         return render(
             request,
             self.template_name,

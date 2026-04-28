@@ -41,17 +41,47 @@ class GuestCreateSessionViewTest(TestCase):
         local_ends_at = timezone.localtime(ends_at)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Boga Meeting Assistant")
-        self.assertContains(response, "Create Guest Session")
-        self.assertContains(response, "Session name")
-        self.assertContains(response, "Meeting link")
-        self.assertContains(response, "Meeting ends")
-        self.assertContains(response, "Login")
-        self.assertContains(response, "Sign up")
-        self.assertContains(response, "Scheduled Meetings")
+        self.assertContains(response, "Boga Assistant Meeting Invitation")
+        self.assertContains(response, "Nama Meeting")
+        self.assertContains(response, "Tanggal Meeting")
+        self.assertContains(response, "Jam Meeting")
+        self.assertContains(response, "Link Meeting")
+        self.assertContains(response, "Status")
+        self.assertContains(response, "Session")
+        self.assertContains(response, "Download")
+        self.assertContains(response, "Konfirmasi Meeting")
+        self.assertContains(response, "Hari & Tanggal")
         self.assertContains(response, "Calendar visible session")
+        self.assertContains(response, "Scheduled")
+        self.assertContains(response, "Open")
         self.assertContains(response, f"{local_starts_at.strftime('%H:%M')} - {local_ends_at.strftime('%H:%M')}")
         self.assertNotContains(response, "API token")
+
+    def test_get_paginates_guest_session_meetings(self):
+        starts_at = timezone.now() + timedelta(days=1)
+        for index in range(7):
+            Bot.objects.create(
+                project=self.guest_project,
+                meeting_url=f"https://meet.google.com/paged-session-{index}",
+                name="Boga Assistant",
+                state=BotStates.SCHEDULED,
+                join_at=starts_at + timedelta(days=index),
+                metadata={"session_name": f"Paged session {index}"},
+            )
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Paged session 6")
+        self.assertContains(response, 'href="?page=2"')
+        self.assertNotContains(response, "Paged session 0")
+
+        response = self.client.get(f"{self.url}?page=2")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Paged session 0")
+        self.assertContains(response, 'href="?page=1"')
+        self.assertNotContains(response, "Paged session 6")
 
     def test_guest_create_session_enforces_three_concurrent_limit(self):
         for index in range(3):
