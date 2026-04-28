@@ -1790,7 +1790,7 @@ def _guest_session_meeting_rows(project, raw_page):
     bots_queryset = (
         Bot.objects.filter(project=project)
         .exclude(state=BotStates.DATA_DELETED)
-        .order_by("-join_at", "-created_at")
+        .order_by("-created_at")
     )
     page = Paginator(bots_queryset, GUEST_SESSION_MEETINGS_PAGE_SIZE).get_page(raw_page)
 
