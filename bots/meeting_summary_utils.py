@@ -27,6 +27,16 @@ class MeetingSummaryError(Exception):
     pass
 
 
+def _get_openai_api_key(project):
+    credentials_record = project.credentials.filter(credential_type=Credentials.CredentialTypes.OPENAI).first()
+    credentials = credentials_record.get_credentials() if credentials_record else None
+    return (credentials or {}).get("api_key") or os.getenv("OPENAI_API_KEY")
+
+
+def _get_openai_base_url():
+    return os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+
+
 def _live_summary_states():
     return {
         BotStates.JOINED_NOT_RECORDING,
@@ -49,8 +59,7 @@ def meeting_summary_is_ready(bot):
     if not bot_can_generate_meeting_summary(bot):
         return False
 
-    openai_credentials = bot.project.credentials.filter(credential_type=Credentials.CredentialTypes.OPENAI).first()
-    if not openai_credentials or not openai_credentials.get_credentials():
+    if not _get_openai_api_key(bot.project):
         return False
 
     return bool(_build_transcript_text(bot))
@@ -60,9 +69,8 @@ def get_meeting_summary_availability_message(bot):
     if not bot_can_generate_meeting_summary(bot):
         return "Meeting summary is available after the meeting ends."
 
-    openai_credentials = bot.project.credentials.filter(credential_type=Credentials.CredentialTypes.OPENAI).first()
-    if not openai_credentials or not openai_credentials.get_credentials():
-        return "Add OpenAI credentials in project settings to generate a GPT-5.4 summary."
+    if not _get_openai_api_key(bot.project):
+        return "Add OpenAI credentials in project settings or set OPENAI_API_KEY to generate a GPT-5.4 summary."
 
     if not _build_transcript_text(bot):
         if bot_is_in_live_meeting_state(bot):
@@ -76,14 +84,9 @@ def generate_meeting_summary(bot):
     if not bot_can_generate_meeting_summary(bot):
         raise MeetingSummaryError("Meeting summary is available after the meeting ends.")
 
-    credentials_record = bot.project.credentials.filter(credential_type=Credentials.CredentialTypes.OPENAI).first()
-    if not credentials_record:
-        raise MeetingSummaryError("Add OpenAI credentials in project settings to generate a GPT-5.4 summary.")
-
-    credentials = credentials_record.get_credentials()
-    api_key = credentials.get("api_key") if credentials else None
+    api_key = _get_openai_api_key(bot.project)
     if not api_key:
-        raise MeetingSummaryError("Add OpenAI credentials in project settings to generate a GPT-5.4 summary.")
+        raise MeetingSummaryError("Add OpenAI credentials in project settings or set OPENAI_API_KEY to generate a GPT-5.4 summary.")
 
     transcript_text = _build_transcript_text(bot)
     if not transcript_text:
@@ -91,7 +94,7 @@ def generate_meeting_summary(bot):
             raise MeetingSummaryError("No transcript is available yet. Wait for transcript snippets to arrive, then generate a live summary.")
         raise MeetingSummaryError("No transcript is available yet. Finish transcription first.")
 
-    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    base_url = _get_openai_base_url()
     url = f"{base_url}/responses"
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -134,14 +137,9 @@ def generate_meeting_summary_stream(bot):
     if not bot_can_generate_meeting_summary(bot):
         raise MeetingSummaryError("Meeting summary is available after the meeting ends.")
 
-    credentials_record = bot.project.credentials.filter(credential_type=Credentials.CredentialTypes.OPENAI).first()
-    if not credentials_record:
-        raise MeetingSummaryError("Add OpenAI credentials in project settings to generate a GPT-5.4 summary.")
-
-    credentials = credentials_record.get_credentials()
-    api_key = credentials.get("api_key") if credentials else None
+    api_key = _get_openai_api_key(bot.project)
     if not api_key:
-        raise MeetingSummaryError("Add OpenAI credentials in project settings to generate a GPT-5.4 summary.")
+        raise MeetingSummaryError("Add OpenAI credentials in project settings or set OPENAI_API_KEY to generate a GPT-5.4 summary.")
 
     transcript_text = _build_transcript_text(bot)
     if not transcript_text:
@@ -149,7 +147,7 @@ def generate_meeting_summary_stream(bot):
             raise MeetingSummaryError("No transcript is available yet. Wait for transcript snippets to arrive, then generate a live summary.")
         raise MeetingSummaryError("No transcript is available yet. Finish transcription first.")
 
-    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    base_url = _get_openai_base_url()
     url = f"{base_url}/responses"
     headers = {
         "Authorization": f"Bearer {api_key}",

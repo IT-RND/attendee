@@ -138,6 +138,7 @@ class MeetingSummaryViewTest(MeetingSummaryFileFieldMixin, TestCase):
         self.assertEqual(self.bot.meeting_summary, "## Ringkasan\nTest summary content.")
         self.assertTrue(self.bot.meeting_summary_pdf.name.endswith(".pdf"))
 
+    @patch.dict("os.environ", {"OPENAI_API_KEY": ""})
     def test_generate_meeting_summary_without_openai_credentials(self):
         self.openai_credentials.delete()
 
@@ -147,6 +148,23 @@ class MeetingSummaryViewTest(MeetingSummaryFileFieldMixin, TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Add OpenAI credentials in project settings")
+
+    @patch("bots.meeting_summary_utils.requests.post")
+    @patch.dict("os.environ", {"OPENAI_API_KEY": "env-openai-key", "OPENAI_BASE_URL": "https://custom.openai.test/v1/"})
+    def test_generate_meeting_summary_uses_env_openai_credentials(self, mock_post):
+        self.openai_credentials.delete()
+        mock_response = Mock(status_code=200)
+        mock_response.json.return_value = {"output_text": "## Ringkasan\nGenerated with env key."}
+        mock_post.return_value = mock_response
+
+        response = self.client.post(
+            reverse("projects:generate-meeting-summary", args=[self.project.object_id, self.bot.object_id])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        call_args = mock_post.call_args
+        self.assertEqual(call_args[0][0], "https://custom.openai.test/v1/responses")
+        self.assertEqual(call_args[1]["headers"]["Authorization"], "Bearer env-openai-key")
 
     def test_bot_detail_shows_generate_summary_button_when_ready(self):
         response = self.client.get(
@@ -448,6 +466,7 @@ class StreamMeetingSummaryViewTest(MeetingSummaryFileFieldMixin, TestCase):
         self.openai_credentials.set_credentials({"api_key": "test-openai-key"})
         self.client.force_login(self.user)
 
+    @patch.dict("os.environ", {"OPENAI_API_KEY": ""})
     def test_stream_returns_error_without_credentials(self):
         self.openai_credentials.delete()
 

@@ -303,11 +303,9 @@ def get_transcription_via_openai(utterance):
     recording = utterance.recording
     transcription_settings = utterance.transcription_settings
     openai_credentials_record = recording.bot.project.credentials.filter(credential_type=Credentials.CredentialTypes.OPENAI).first()
-    if not openai_credentials_record:
-        return None, {"reason": TranscriptionFailureReasons.CREDENTIALS_NOT_FOUND}
-
-    openai_credentials = openai_credentials_record.get_credentials()
-    if not openai_credentials:
+    openai_credentials = openai_credentials_record.get_credentials() if openai_credentials_record else None
+    api_key = (openai_credentials or {}).get("api_key") or os.getenv("OPENAI_API_KEY")
+    if not api_key:
         return None, {"reason": TranscriptionFailureReasons.CREDENTIALS_NOT_FOUND}
 
     # If the audio blob is less than 80ms in duration, just return an empty transcription
@@ -321,10 +319,10 @@ def get_transcription_via_openai(utterance):
     payload_mp3 = pcm_to_mp3(utterance.get_audio_blob().tobytes(), sample_rate=utterance.get_sample_rate())
 
     # Prepare the request for OpenAI's transcription API
-    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
     url = f"{base_url}/audio/transcriptions"
     headers = {
-        "Authorization": f"Bearer {openai_credentials['api_key']}",
+        "Authorization": f"Bearer {api_key}",
     }
     files = {"file": ("file.mp3", payload_mp3, "audio/mpeg"), "model": (None, transcription_settings.openai_transcription_model())}
     if transcription_settings.openai_transcription_prompt():

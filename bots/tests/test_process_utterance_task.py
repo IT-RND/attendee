@@ -960,6 +960,21 @@ class OpenAIProviderTest(TransactionTestCase):
         )
 
     # ────────────────────────────────────────────────────────────────────────────────
+    @mock.patch("bots.tasks.process_utterance_task.requests.post")
+    @mock.patch("bots.tasks.process_utterance_task.pcm_to_mp3", return_value=b"mp3")
+    @mock.patch.dict("os.environ", {"OPENAI_API_KEY": "sk-env"})
+    def test_env_api_key_without_credentials_record(self, mock_pcm, mock_post):
+        self.creds.delete()
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"text": "env key works!"}
+
+        tx, failure = get_transcription_via_openai(self.utt)
+
+        self.assertIsNone(failure)
+        self.assertEqual(tx, {"transcript": "env key works!"})
+        self.assertEqual(mock_post.call_args[1]["headers"]["Authorization"], "Bearer sk-env")
+
+    @mock.patch.dict("os.environ", {"OPENAI_API_KEY": ""})
     def test_no_credentials(self):
         # Remove the credentials row
         self.creds.delete()
