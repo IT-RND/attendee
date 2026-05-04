@@ -2,12 +2,9 @@
     <div class="card mt-4" id="zoom-oauth-app-container">
         <div class="card-header">
             <h5 class="mb-0">Zoom OAuth App Credentials</h5>
-            <!-- Simplify UI for now, no need to show the object id since we are assuming one zoom oauth app per project -->
-            {% comment %}
-                {% if zoom_oauth_app %}
-                <code class="me-2">{{ zoom_oauth_app.object_id }}</code>
-                {% endif %}
-            {% endcomment %}
+            {% if zoom_oauth_app %}
+                <code class="me-2 d-block mt-2">{{ zoom_oauth_app.object_id }}</code>
+            {% endif %}
         </div>
         <div class="card-body">
             <div id="credentials-status">

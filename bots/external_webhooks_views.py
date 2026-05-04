@@ -10,7 +10,16 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import CalendarNotificationChannel, ZoomOAuthApp, ZoomOAuthConnection
+from .app_session_api_utils import create_app_session
+from .bots_api_utils import BotCreationSource, send_sync_command
+from .models import (
+    Bot,
+    BotEventManager,
+    BotEventTypes,
+    CalendarNotificationChannel,
+    ZoomOAuthApp,
+    ZoomOAuthConnection,
+)
 from .stripe_utils import process_checkout_session_completed, process_customer_updated, process_payment_intent_succeeded
 from .zoom_oauth_connections_utils import _upsert_zoom_meeting_to_zoom_oauth_connection_mapping, _verify_zoom_webhook_signature, compute_zoom_webhook_validation_response
 
@@ -143,6 +152,43 @@ class ExternalWebhookZoomOAuthAppView(View):
 
             event_json = json.loads(request_body)
             event_type = event_json.get("event")
+
+            if event_type == "meeting.rtms_started":
+                payload = event_json.get("payload") or {}
+                app_session, error = create_app_session(
+                    data={"zoom_rtms": payload},
+                    source=BotCreationSource.API,
+                    project=zoom_oauth_app.project,
+                )
+                if error:
+                    logger.error("Zoom RTMS meeting.rtms_started: failed to create app session for project %s: %s", zoom_oauth_app.project.object_id, error)
+                else:
+                    logger.info("Zoom RTMS meeting.rtms_started: created app session %s", app_session.object_id)
+                    organization = zoom_oauth_app.project.organization
+                    if not organization.is_app_sessions_enabled:
+                        organization.is_app_sessions_enabled = True
+                        organization.save(update_fields=["is_app_sessions_enabled"])
+                if not zoom_oauth_app.last_verified_webhook_received_at or zoom_oauth_app.last_verified_webhook_received_at < timezone.now() - timedelta(minutes=5):
+                    zoom_oauth_app.last_verified_webhook_received_at = timezone.now()
+                    zoom_oauth_app.save(update_fields=["last_verified_webhook_received_at"])
+                return HttpResponse(status=200)
+
+            if event_type == "meeting.rtms_stopped":
+                payload = event_json.get("payload") or {}
+                stream_id = payload.get("rtms_stream_id") or payload.get("rtmsStreamId")
+                if stream_id:
+                    try:
+                        app_session = Bot.objects.get(zoom_rtms_stream_id=stream_id, project=zoom_oauth_app.project)
+                        BotEventManager.create_event(app_session, BotEventTypes.APP_SESSION_DISCONNECT_REQUESTED)
+                        send_sync_command(app_session)
+                        logger.info("Zoom RTMS meeting.rtms_stopped: disconnect requested for app session %s", app_session.object_id)
+                    except Bot.DoesNotExist:
+                        logger.info("Zoom RTMS meeting.rtms_stopped: no app session for rtms_stream_id=%s project=%s", stream_id, zoom_oauth_app.project.object_id)
+                if not zoom_oauth_app.last_verified_webhook_received_at or zoom_oauth_app.last_verified_webhook_received_at < timezone.now() - timedelta(minutes=5):
+                    zoom_oauth_app.last_verified_webhook_received_at = timezone.now()
+                    zoom_oauth_app.save(update_fields=["last_verified_webhook_received_at"])
+                return HttpResponse(status=200)
+
             if event_type == "meeting.created":
                 meeting_id = event_json.get("payload", {}).get("object", {}).get("id")
                 # Host is the user who is hosting the meeting

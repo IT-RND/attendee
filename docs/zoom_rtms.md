@@ -70,7 +70,20 @@ Official references: [Zoom RTMS — add features](https://developers.zoom.us/doc
 3. Use a **different** HTTPS URL than your Zoom event subscription URL; these callbacks originate from Boga (Meeting) Assistant, not Zoom.
 4. Click **Create** to save your webhook.
 
-### Add code to your application to handle the meeting.rtms_started webhook from Zoom
+### Option A — Zoom Event Subscription URL on Boga (no separate forwarder)
+
+If your Zoom RTMS app is registered under the same project (**Settings → Credentials → Zoom OAuth App**), you can point Zoom’s **Event notification endpoint URL** at Boga’s Zoom webhook for that app:
+
+`https://<your-site-domain>/external_webhooks/zoom/oauth_apps/<ZoomOAuthApp.object_id>`
+
+Replace `<your-site-domain>` with your deployment host (for example `meeting-assistant.boga.co.id`) and `<ZoomOAuthApp.object_id>` with the **object ID** of the Zoom OAuth app row in that project (the same ID used in the dashboard URL or API for that credential).
+
+Requirements:
+
+- The **Webhook Secret Token** configured in the Zoom Developer Portal for that event subscription must match the **webhook secret** stored on that Zoom OAuth app in Boga (used for signature verification).
+- Boga will create an app session on **`meeting.rtms_started`** and request disconnect on **`meeting.rtms_stopped`**, using default transcription/recording behavior (same defaults as **`POST /api/v1/app_sessions`** without extra fields). For custom `metadata`, `transcription_settings`, or per-request `webhooks`, use Option B and call the API yourself.
+
+### Option B — Your own server forwards to the App Sessions API
 
 Handle `meeting.rtms_started` from Zoom and call **`POST /api/v1/app_sessions`** with:
 

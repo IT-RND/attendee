@@ -8,7 +8,10 @@ from django.urls import reverse
 
 from accounts.models import Organization
 from bots.models import (
+    Bot,
+    BotStates,
     Project,
+    SessionTypes,
     ZoomMeetingToZoomOAuthConnectionMapping,
     ZoomOAuthApp,
     ZoomOAuthConnection,
@@ -517,3 +520,68 @@ class TestZoomOAuthWebhooks(TestCase):
         self.zoom_oauth_app.refresh_from_db()
         self.assertIsNotNone(self.zoom_oauth_app.last_verified_webhook_received_at)
         self.assertIsNone(self.zoom_oauth_app.last_unverified_webhook_received_at)
+
+    def test_meeting_rtms_started_creates_app_session(self):
+        """Zoom meeting.rtms_started creates an APP_SESSION via create_app_session."""
+        event_data = {
+            "event": "meeting.rtms_started",
+            "payload": {
+                "meeting_uuid": "muuid-rtms-webhook-1",
+                "rtms_stream_id": "stream-rtms-webhook-1",
+                "server_urls": ["wss://example.com/rtms"],
+            },
+        }
+        body = json.dumps(event_data)
+        timestamp = "1234567890"
+        signature = self._generate_zoom_signature(body, timestamp, "test_webhook_secret")
+
+        response = self.client.post(
+            self.url,
+            data=body,
+            content_type="application/json",
+            HTTP_X_ZM_SIGNATURE=signature,
+            HTTP_X_ZM_REQUEST_TIMESTAMP=timestamp,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        app_session = Bot.objects.get(zoom_rtms_stream_id="stream-rtms-webhook-1", project=self.project)
+        self.assertEqual(app_session.session_type, SessionTypes.APP_SESSION)
+        self.assertEqual(app_session.settings.get("zoom_rtms", {}).get("meeting_uuid"), "muuid-rtms-webhook-1")
+        self.organization.refresh_from_db()
+        self.assertTrue(self.organization.is_app_sessions_enabled)
+
+    @patch("bots.external_webhooks_views.send_sync_command")
+    def test_meeting_rtms_stopped_requests_disconnect(self, mock_send_sync):
+        Bot.objects.create(
+            project=self.project,
+            meeting_url="app_session",
+            name="App Session",
+            session_type=SessionTypes.APP_SESSION,
+            zoom_rtms_stream_id="stream-rtms-stop-1",
+            state=BotStates.JOINED_RECORDING,
+            settings={
+                "zoom_rtms": {
+                    "meeting_uuid": "m1",
+                    "rtms_stream_id": "stream-rtms-stop-1",
+                    "server_urls": ["wss://x"],
+                }
+            },
+        )
+        event_data = {
+            "event": "meeting.rtms_stopped",
+            "payload": {"rtms_stream_id": "stream-rtms-stop-1"},
+        }
+        body = json.dumps(event_data)
+        timestamp = "1234567890"
+        signature = self._generate_zoom_signature(body, timestamp, "test_webhook_secret")
+
+        response = self.client.post(
+            self.url,
+            data=body,
+            content_type="application/json",
+            HTTP_X_ZM_SIGNATURE=signature,
+            HTTP_X_ZM_REQUEST_TIMESTAMP=timestamp,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_send_sync.assert_called_once()
