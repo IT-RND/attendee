@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import Organization, User
-from bots.models import Bot, BotStates, Project
+from bots.models import Bot, BotStates, Project, ZoomOAuthApp, ZoomOAuthConnection, ZoomOAuthConnectionStates
 
 
 class GuestCreateSessionViewTest(TestCase):
@@ -127,6 +127,60 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertIn("scheduled_end_at", bot.metadata)
         self.assertNotIn("authenticated_user_id", bot.metadata)
         mock_launch_bot.assert_not_called()
+
+    @patch("bots.projects_views.launch_bot")
+    def test_guest_zoom_session_uses_connected_zoom_oauth_connection_for_onbehalf_token(self, mock_launch_bot):
+        zoom_oauth_app = ZoomOAuthApp.objects.create(project=self.guest_project, client_id="zoom-client-id")
+        zoom_oauth_app.set_credentials({"client_secret": "zoom-client-secret", "webhook_secret": ""})
+        zoom_oauth_connection = ZoomOAuthConnection.objects.create(
+            zoom_oauth_app=zoom_oauth_app,
+            user_id="zoom-user-id",
+            account_id="zoom-account-id",
+            state=ZoomOAuthConnectionStates.CONNECTED,
+            is_onbehalf_token_supported=True,
+        )
+        zoom_oauth_connection.set_credentials({"refresh_token": "zoom-refresh-token"})
+
+        response = self.client.post(
+            self.url,
+            data={
+                "session_name": "Guest Zoom session",
+                "meeting_url": "https://zoom.us/j/76402333351?pwd=bS7mVcj9DFz2clTYGPa5w86uK2jaeq.1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        bot = Bot.objects.get(object_id=response.json()["bot_id"])
+        self.assertEqual(
+            bot.settings["zoom_settings"]["onbehalf_token"]["zoom_oauth_connection_user_id"],
+            "zoom-user-id",
+        )
+        mock_launch_bot.assert_called_once_with(bot)
+
+    @patch("bots.projects_views.launch_bot")
+    def test_guest_non_zoom_session_does_not_use_zoom_oauth_connection(self, mock_launch_bot):
+        zoom_oauth_app = ZoomOAuthApp.objects.create(project=self.guest_project, client_id="zoom-client-id")
+        zoom_oauth_app.set_credentials({"client_secret": "zoom-client-secret", "webhook_secret": ""})
+        ZoomOAuthConnection.objects.create(
+            zoom_oauth_app=zoom_oauth_app,
+            user_id="zoom-user-id",
+            account_id="zoom-account-id",
+            state=ZoomOAuthConnectionStates.CONNECTED,
+            is_onbehalf_token_supported=True,
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "session_name": "Guest Meet session",
+                "meeting_url": "https://meet.google.com/xyz-uvwx-rst",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        bot = Bot.objects.get(object_id=response.json()["bot_id"])
+        self.assertNotIn("onbehalf_token", bot.settings["zoom_settings"])
+        mock_launch_bot.assert_called_once_with(bot)
 
     @patch("bots.projects_views.launch_bot")
     def test_guest_scheduled_session_does_not_use_current_live_guest_limit(self, mock_launch_bot):

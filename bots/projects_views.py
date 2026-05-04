@@ -33,6 +33,7 @@ from .google_calendar_oauth import (
     google_calendar_oauth_is_configured,
 )
 from .launch_bot_utils import launch_bot
+from .meeting_url_utils import meeting_type_from_url
 from .meeting_summary_guest_utils import (
     assert_guest_url_matches_session_type,
     authenticated_summary_api_urls,
@@ -66,6 +67,7 @@ from .models import (
     CreditTransaction,
     GoogleMeetBotLogin,
     GoogleMeetBotLoginGroup,
+    MeetingTypes,
     Participant,
     ParticipantEventTypes,
     Project,
@@ -82,6 +84,8 @@ from .models import (
     WebhookSubscription,
     WebhookTriggerTypes,
     ZoomOAuthApp,
+    ZoomOAuthConnection,
+    ZoomOAuthConnectionStates,
 )
 from .serializers import DEFAULT_BOT_NAME
 from .storage import remote_storage_url
@@ -1704,6 +1708,30 @@ def _guest_session_project_for_request(request):
     return _guest_session_project()
 
 
+def _guest_session_zoom_settings(project, meeting_url):
+    if meeting_type_from_url(meeting_url) != MeetingTypes.ZOOM:
+        return None
+
+    zoom_oauth_connection = (
+        ZoomOAuthConnection.objects.filter(
+            zoom_oauth_app__project=project,
+            state=ZoomOAuthConnectionStates.CONNECTED,
+            is_onbehalf_token_supported=True,
+        )
+        .order_by("-updated_at")
+        .first()
+    )
+    if not zoom_oauth_connection:
+        return None
+
+    return {
+        "sdk": "native",
+        "onbehalf_token": {
+            "zoom_oauth_connection_user_id": zoom_oauth_connection.user_id,
+        },
+    }
+
+
 def _parse_guest_session_join_at(raw_join_at):
     raw_join_at = (raw_join_at or "").strip()
     if not raw_join_at:
@@ -1962,6 +1990,9 @@ class GuestCreateSessionView(View):
                 "bot_name": DEFAULT_BOT_NAME,
                 "metadata": metadata,
             }
+            zoom_settings = _guest_session_zoom_settings(project, meeting_url)
+            if zoom_settings:
+                data["zoom_settings"] = zoom_settings
             if join_at:
                 data["join_at"] = join_at.isoformat()
 

@@ -286,16 +286,23 @@ def get_local_recording_token_via_zoom_oauth_app(bot: Bot) -> str | None:
 
 def get_onbehalf_token_via_zoom_oauth_app(bot: Bot) -> str | None:
     user_id_for_onbehalf_token = bot.zoom_onbehalf_token_zoom_oauth_connection_user_id()
-    if not user_id_for_onbehalf_token:
-        return None
-
     project = bot.project
     zoom_oauth_app = project.zoom_oauth_apps.first()
     if not zoom_oauth_app:
         return None
 
-    zoom_oauth_connection = ZoomOAuthConnection.objects.filter(zoom_oauth_app=zoom_oauth_app, user_id=user_id_for_onbehalf_token).first()
+    zoom_oauth_connections = ZoomOAuthConnection.objects.filter(
+        zoom_oauth_app=zoom_oauth_app,
+        state=ZoomOAuthConnectionStates.CONNECTED,
+        is_onbehalf_token_supported=True,
+    )
+    if user_id_for_onbehalf_token:
+        zoom_oauth_connection = zoom_oauth_connections.filter(user_id=user_id_for_onbehalf_token).first()
+    else:
+        zoom_oauth_connection = zoom_oauth_connections.order_by("-updated_at").first()
+
     if not zoom_oauth_connection:
+        logger.info(f"No connected Zoom OAuth connection found for onbehalf token in zoom oauth app {zoom_oauth_app.id}")
         return None
 
     if not zoom_oauth_connection.is_onbehalf_token_supported:

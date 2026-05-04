@@ -196,8 +196,22 @@ class TestGetZoomTokensViaZoomOAuthApp(TestCase):
 
     @patch("bots.zoom_oauth_connections_utils.requests.Session")
     @patch("bots.zoom_oauth_connections_utils.requests.post")
-    def test_returns_local_recording_token_when_no_onbehalf_configured(self, mock_post, mock_session):
-        """Test that local recording token is fetched when no onbehalf token is configured."""
+    def test_returns_default_onbehalf_token_when_no_onbehalf_configured(self, mock_post, mock_session):
+        """Test that a connected Zoom OAuth connection is used when no onbehalf token user is configured."""
+        bot = self._create_bot(use_web_adapter=False, onbehalf_user_id=None)
+        self._mock_zoom_api_responses(mock_post, mock_session, local_recording_token="local_rec_token_123", onbehalf_token="onbehalf_token_456")
+
+        result = get_zoom_tokens_via_zoom_oauth_app(bot)
+
+        self.assertEqual(result["app_privilege_token"], "local_rec_token_123")
+        self.assertEqual(result["onbehalf_token"], "onbehalf_token_456")
+
+    @patch("bots.zoom_oauth_connections_utils.requests.Session")
+    @patch("bots.zoom_oauth_connections_utils.requests.post")
+    def test_returns_no_onbehalf_token_without_connected_onbehalf_connection(self, mock_post, mock_session):
+        """Test that no onbehalf token is fetched if no connected connection supports it."""
+        self.zoom_oauth_connection.is_onbehalf_token_supported = False
+        self.zoom_oauth_connection.save()
         bot = self._create_bot(use_web_adapter=False, onbehalf_user_id=None)
         self._mock_zoom_api_responses(mock_post, mock_session, local_recording_token="local_rec_token_123")
 
