@@ -136,7 +136,12 @@ class AppSessionEndView(APIView):
     )
     def post(self, request):
         try:
-            rtms_stream_id = request.data.get("zoom_rtms").get("rtms_stream_id")
+            zoom_rtms = request.data.get("zoom_rtms") if isinstance(request.data, dict) else None
+            if not isinstance(zoom_rtms, dict):
+                return Response({"error": "zoom_rtms object is required"}, status=status.HTTP_400_BAD_REQUEST)
+            rtms_stream_id = zoom_rtms.get("rtms_stream_id")
+            if not rtms_stream_id:
+                return Response({"error": "zoom_rtms.rtms_stream_id is required"}, status=status.HTTP_400_BAD_REQUEST)
             app_session = Bot.objects.get(zoom_rtms_stream_id=rtms_stream_id, project=request.auth.project)
 
             BotEventManager.create_event(app_session, BotEventTypes.APP_SESSION_DISCONNECT_REQUESTED)
@@ -145,7 +150,7 @@ class AppSessionEndView(APIView):
 
             return Response(AppSessionSerializer(app_session).data, status=status.HTTP_200_OK)
         except ValidationError as e:
-            logging.error(f"Error ending app session: {str(e)} (app_session_id={app_session.object_id})")
+            logging.error("Error ending app session: %s", str(e))
             return Response({"error": e.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
         except Bot.DoesNotExist:
             return Response({"error": "App session not found"}, status=status.HTTP_404_NOT_FOUND)

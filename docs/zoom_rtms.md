@@ -25,17 +25,19 @@ Limitations of RTMS:
 
 ## How to implement RTMS with Boga (Meeting) Assistant
 
+Official references: [Zoom RTMS — add features](https://developers.zoom.us/docs/rtms/meetings/add-features/), [Attendee guide — Zoom RTMS (App Sessions)](https://mintlify.wiki/attendee-labs/attendee/guides/zoom-rtms).
+
 ### Create an RTMS App in the Zoom Developer Portal
 
 1. Go to the [Zoom Developer Portal](https://marketplace.zoom.us/user/build) and create a new General app.
 
 2. On the sidebar select 'Basic Information'.
-3. For the OAuth redirect URLs, you can write https://zoom.us or any other URL, assuming you app does not need to use OAuth.
+3. For the OAuth redirect URLs, you can write https://zoom.us or any other URL, assuming your app does not need to use OAuth.
 
 4. On the sidebar select 'Access'.
 5. Click 'Add new Event Subscription'.
-6. Subscribe to the 'RTMS started' and 'RTMS stopped' events.
-7. Set the 'Event notification endpoint URL' to an endpoint on your application for handling Zoom webhooks.
+6. Subscribe to **`meeting.rtms_started`** and **`meeting.rtms_stopped`** (shown in the portal as RTMS started / RTMS stopped).
+7. Set the 'Event notification endpoint URL' to an **HTTPS URL on your own application** that will verify Zoom signatures and forward RTMS data to Boga (Meeting) Assistant. Do not point this URL directly at Boga (Meeting) Assistant — your server must translate the Zoom webhook into `POST /api/v1/app_sessions`.
 8. Save the changes.
 
 9. On the sidebar select 'Scopes'.
@@ -56,25 +58,42 @@ Limitations of RTMS:
 ### Register your RTMS App with Boga (Meeting) Assistant
 
 1. Go to the Boga (Meeting) Assistant dashboard and create a new project for your RTMS app.
-2. Navigate to **Settings → Credentials**
-2. Under Zoom OAuth App Credentials, click **"Add OAuth App"**
-3. Enter your Zoom Client ID, Client Secret from your RTMS App
-4. Click **"Save"**
+2. Navigate to **Settings → Credentials**.
+3. Under **Zoom OAuth App Credentials**, click **Add OAuth App**.
+4. Enter the **Client ID** and **Client Secret** from the same Zoom General app you use for RTMS (this lets Boga connect to the RTMS stream on your behalf).
+5. Click **Save**.
 
 ### Configure webhooks in Boga (Meeting) Assistant
 
-1. Go to **Settings -> Webhooks**.
-2. Click on 'Create Webhook' and select whichever webhook triggers you want to receive from Boga (Meeting) Assistant. You will most likely want to subscribe to the `bot.stage_change` trigger, which despite the name, is fired when the rtms session changes state. The webhook destination url should be a different url than the one you used for the Zoom webhook endpoint, because these webhooks are coming from Boga (Meeting) Assistant, not Zoom.
-3. Click **"Create"** to save your webhook.
+1. Go to **Settings → Webhooks**.
+2. Click **Create Webhook** and select the triggers you need from Boga (Meeting) Assistant. For app sessions, subscribe to **`bot.state_change`** — it fires when the RTMS-backed session changes state (e.g. moves to `ended`), despite the `bot_` naming.
+3. Use a **different** HTTPS URL than your Zoom event subscription URL; these callbacks originate from Boga (Meeting) Assistant, not Zoom.
+4. Click **Create** to save your webhook.
 
 ### Add code to your application to handle the meeting.rtms_started webhook from Zoom
 
-This code will need to handle the `meeting.rtms_started` webhook from Zoom and forward the webhook payload to Boga (Meeting) Assistant by calling `POST /api/v1/app_sessions`. Set the `zoom_rtms` field equal to the payload from the `meeting.rtms_started` webhook. You can also specify the same settings for metadata, transcription and recording that you can for a bot. See [here](https://github.com/attendee-labs/rtms-notetaker-example/blob/d51d7f79d13151ffa97369bf264736f244fe35e4/index.js#L70) for an example.
+Handle `meeting.rtms_started` from Zoom and call **`POST /api/v1/app_sessions`** with:
 
+- Header: `Authorization: Token <YOUR_BOGA_API_KEY>`
+- JSON body: at minimum `{ "zoom_rtms": { ... } }` where `zoom_rtms` contains the RTMS fields Zoom sends (`meeting_uuid`, `rtms_stream_id`, `server_urls`, optional `operator_id`). You may forward either the object under Zoom’s `payload` or the full webhook object — the API normalizes common Zoom field names (`meetingUuid`, `rtmsStreamId`, `serverUrls`).
 
-### Add code to your application to handle the bot.stage_change webhook from Boga (Meeting) Assistant
+Optional fields are the same as for bots: `metadata`, `transcription_settings`, `recording_settings`, `webhooks`, etc.
 
-The `bot.state_change` webhook is fired when the rtms session changes state. You will want to look for the `ended` state, which means that the rtms session has ended and you can retrieve the recording and transcript from the app session API endpoints. See [here](https://github.com/attendee-labs/rtms-notetaker-example/blob/d51d7f79d13151ffa97369bf264736f244fe35e4/index.js#L119) for an example.
+See the runnable example in this repository at [`examples/zoom_rtms_node/README.md`](../examples/zoom_rtms_node/README.md), and the upstream [notetaker sample](https://github.com/attendee-labs/rtms-notetaker-example/blob/d51d7f79d13151ffa97369bf264736f244fe35e4/index.js#L70).
+
+### Add code to your application to handle the bot.state_change webhook from Boga (Meeting) Assistant
+
+Subscribe to **`bot.state_change`**. When `new_state` is **`ended`**, fetch transcript and media via:
+
+- `GET /api/v1/app_sessions/{id}/transcript`
+- `GET /api/v1/app_sessions/{id}/media`
+- `GET /api/v1/app_sessions/{id}/participant_events`
+
+The webhook body identifies the app session (see payload fields in your Boga dashboard webhook docs). Example handler logic: [notetaker sample](https://github.com/attendee-labs/rtms-notetaker-example/blob/d51d7f79d13151ffa97369bf264736f244fe35e4/index.js#L119).
+
+### Ending a session from Zoom (optional)
+
+On **`meeting.rtms_stopped`**, you may call **`POST /api/v1/app_sessions/end`** with body `{ "zoom_rtms": { "rtms_stream_id": "<same id as when started>" } }` to request disconnect.
 
 ## Other App session API endpoints
 

@@ -138,6 +138,14 @@ def extract_join_info(join_payload: dict):
     if isinstance(server_urls, dict):
         # If Zoom ever returns a dict of URLs, pick reasonable default.
         signaling_url = server_urls.get("signaling") or server_urls.get("all") or next(iter(server_urls.values()), None)
+    elif isinstance(server_urls, list):
+        # Zoom may send a list of server URL strings; use the first valid entry.
+        for item in server_urls:
+            if isinstance(item, str) and item:
+                signaling_url = item
+                break
+        else:
+            signaling_url = None
     else:
         signaling_url = server_urls
 
