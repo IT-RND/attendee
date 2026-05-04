@@ -30,7 +30,7 @@ class MeetingSummaryError(Exception):
 def _get_openai_api_key(project):
     credentials_record = project.credentials.filter(credential_type=Credentials.CredentialTypes.OPENAI).first()
     credentials = credentials_record.get_credentials() if credentials_record else None
-    return (credentials or {}).get("api_key") or os.getenv("OPENAI_API_KEY")
+    return os.getenv("OPENAI_API_KEY")
 
 
 def _get_openai_base_url():
