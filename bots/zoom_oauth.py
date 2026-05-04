@@ -36,7 +36,7 @@ def build_zoom_oauth_authorize_url(
     params = {
         "response_type": "code",
         "client_id": zoom_oauth_app.client_id,
-        "redirect_uri": zoom_oauth_redirect_uri(),
+        "redirect_uri": zoom_oauth_redirect_uri(project),
         "state": state,
     }
     return f"https://zoom.us/oauth/authorize?{urlencode(params)}"
@@ -62,7 +62,7 @@ def connect_zoom_oauth_connection(project: Project, authorization_code: str, sta
     zoom_oauth_connection, error = create_zoom_oauth_connection(
         data={
             "authorization_code": authorization_code,
-            "redirect_uri": zoom_oauth_redirect_uri(),
+            "redirect_uri": zoom_oauth_redirect_uri(project),
             "is_local_recording_token_supported": state_data.get("is_local_recording_token_supported", False),
             "is_onbehalf_token_supported": state_data.get("is_onbehalf_token_supported", True),
         },
@@ -75,7 +75,9 @@ def connect_zoom_oauth_connection(project: Project, authorization_code: str, sta
     return zoom_oauth_connection
 
 
-def zoom_oauth_redirect_uri() -> str:
+def zoom_oauth_redirect_uri(project: Project | None = None) -> str:
+    if project:
+        return build_site_url(reverse("projects:project-zoom-oauth-project-callback", kwargs={"object_id": project.object_id}))
     return build_site_url(reverse("projects:project-zoom-oauth-callback"))
 
 

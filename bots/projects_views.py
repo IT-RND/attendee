@@ -298,7 +298,7 @@ class ProjectUrlContextMixin:
             "UserRole": UserRole,
             "user_can_manage_sensitive_integrations": user_can_manage_sensitive_integrations(self.request.user),
             "debug_mode": True if settings.DEBUG else False,
-            "zoom_oauth_redirect_uri": zoom_oauth_redirect_uri(),
+            "zoom_oauth_redirect_uri": zoom_oauth_redirect_uri(project),
         }
 
 
@@ -460,14 +460,21 @@ class StartZoomOAuthView(MeetingCreatorSensitiveIntegrationsDeniedMixin, View):
 
 
 class ZoomOAuthCallbackView(MeetingCreatorSensitiveIntegrationsDeniedMixin, View):
-    def get(self, request):
+    def get(self, request, object_id=None):
         state = request.GET.get("state")
-        if not state:
-            return HttpResponse("Missing Zoom OAuth state.", status=400)
-
         try:
-            state_data = get_zoom_oauth_state_data(state)
-            project = get_project_for_user(user=request.user, project_object_id=state_data["project_object_id"])
+            if state:
+                state_data = get_zoom_oauth_state_data(state)
+                project_object_id = state_data["project_object_id"]
+                if object_id and object_id != project_object_id:
+                    return HttpResponse("Zoom OAuth state does not match the callback project.", status=400)
+            elif object_id:
+                project_object_id = object_id
+                state_data = {}
+            else:
+                return HttpResponse("Missing Zoom OAuth state.", status=400)
+
+            project = get_project_for_user(user=request.user, project_object_id=project_object_id)
         except ZoomOAuthError as exc:
             return HttpResponse(str(exc), status=400)
 
@@ -657,7 +664,7 @@ class ProjectCredentialsView(MeetingCreatorSensitiveIntegrationsDeniedMixin, Pro
         context.update(
             {
                 "zoom_oauth_app": zoom_oauth_app,
-                "zoom_oauth_redirect_uri": zoom_oauth_redirect_uri(),
+                "zoom_oauth_redirect_uri": zoom_oauth_redirect_uri(project),
                 "zoom_oauth_success": request.GET.get("zoom_oauth_success"),
                 "zoom_oauth_error": request.GET.get("zoom_oauth_error"),
                 "google_meet_bot_login_group": google_meet_bot_login_group,

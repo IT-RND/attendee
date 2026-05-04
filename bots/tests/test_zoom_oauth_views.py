@@ -41,7 +41,7 @@ class ZoomOAuthViewsTest(TestCase):
         self.assertEqual(params["response_type"][0], "code")
         self.assertEqual(
             params["redirect_uri"][0],
-            "https://zoom.example.com/projects/zoom/oauth/callback",
+            f"https://zoom.example.com/projects/{self.project.object_id}/zoom/oauth/callback",
         )
 
         state_data = get_zoom_oauth_state_data(params["state"][0])
@@ -91,12 +91,52 @@ class ZoomOAuthViewsTest(TestCase):
 
         mock_exchange_tokens.assert_called_once_with(
             code="zoom-auth-code",
-            redirect_uri="https://zoom.example.com/projects/zoom/oauth/callback",
+            redirect_uri=f"https://zoom.example.com/projects/{self.project.object_id}/zoom/oauth/callback",
             client_id="zoom-client-id",
             client_secret="zoom-client-secret",
         )
         mock_get_user_info.assert_called_once_with("zoom-access-token")
         mock_enqueue_sync_zoom_oauth_connection_task.assert_called_once_with(zoom_oauth_connection)
+
+    @patch("bots.zoom_oauth.enqueue_sync_zoom_oauth_connection_task")
+    @patch("bots.zoom_oauth_connections_api_utils._get_user_info")
+    @patch("bots.zoom_oauth_connections_api_utils._exchange_access_code_for_tokens")
+    def test_project_zoom_oauth_callback_creates_connection_without_state(
+        self,
+        mock_exchange_tokens,
+        mock_get_user_info,
+        mock_enqueue_sync_zoom_oauth_connection_task,
+    ):
+        mock_exchange_tokens.return_value = {
+            "access_token": "zoom-access-token",
+            "refresh_token": "zoom-refresh-token",
+            "scope": "user:read:user user:read:token",
+        }
+        mock_get_user_info.return_value = {
+            "id": "zoom-user-id",
+            "account_id": "zoom-account-id",
+            "status": "active",
+        }
+
+        with patch.dict(os.environ, {"EXTERNAL_WEBHOOK_SITE_DOMAIN": "zoom.example.com"}, clear=False):
+            response = self.client.get(
+                reverse("projects:project-zoom-oauth-project-callback", kwargs={"object_id": self.project.object_id}),
+                {"code": "zoom-auth-code"},
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("zoom_oauth_success=", response["Location"])
+
+        zoom_oauth_connection = ZoomOAuthConnection.objects.get(zoom_oauth_app=self.zoom_oauth_app)
+        self.assertEqual(zoom_oauth_connection.user_id, "zoom-user-id")
+        self.assertFalse(zoom_oauth_connection.is_local_recording_token_supported)
+        self.assertTrue(zoom_oauth_connection.is_onbehalf_token_supported)
+        mock_exchange_tokens.assert_called_once_with(
+            code="zoom-auth-code",
+            redirect_uri=f"https://zoom.example.com/projects/{self.project.object_id}/zoom/oauth/callback",
+            client_id="zoom-client-id",
+            client_secret="zoom-client-secret",
+        )
 
     def test_start_zoom_oauth_redirects_back_without_app_credentials(self):
         self.zoom_oauth_app.delete()

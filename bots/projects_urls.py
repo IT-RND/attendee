@@ -22,6 +22,11 @@ urlpatterns = [
         name="project-zoom-oauth-callback",
     ),
     path(
+        "<str:object_id>/zoom/oauth/callback",
+        projects_views.ZoomOAuthCallbackView.as_view(),
+        name="project-zoom-oauth-project-callback",
+    ),
+    path(
         "create/",
         projects_views.CreateProjectView.as_view(),
         name="create-project",
