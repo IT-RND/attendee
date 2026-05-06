@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block body_content %}
 <style>
@@ -131,6 +132,25 @@
         color: #155724;
     }
 
+    .guest-input-note {
+        margin-top: 7px;
+        color: #6b7280;
+        font-size: 13px;
+        line-height: 1.35;
+    }
+
+    .guest-input-warning {
+        margin-top: 8px;
+        padding: 9px 11px;
+        border: 1px solid #fed7aa;
+        border-radius: 12px;
+        background: #fff7ed;
+        color: #9a3412;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.35;
+    }
+
     .guest-meetings-table th,
     .guest-meetings-table td {
         border: 1px solid #e5e7eb;
@@ -209,7 +229,14 @@
     }
 
     .guest-download-icon {
-        margin-right: 0;
+        display: block;
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+    }
+
+    .guest-download-disabled .guest-download-icon {
+        opacity: 0.45;
     }
 
     .guest-status-badge {
@@ -472,6 +499,8 @@
                         <th scope="row"><label for="id_meeting_url">Link Meeting</label></th>
                         <td colspan="3">
                             <input type="url" class="guest-input" id="id_meeting_url" name="meeting_url" required>
+                            <div class="guest-input-note">Zoom support is coming soon. Untuk saat ini gunakan link Google Meet atau Microsoft Teams.</div>
+                            <div id="guestSessionZoomNotice" class="guest-input-warning d-none" role="alert">Link Zoom terdeteksi. Zoom support is coming soon, jadi gunakan Google Meet atau Microsoft Teams dulu.</div>
                         </td>
                     </tr>
                     <tr>
@@ -514,22 +543,22 @@
                     <td>
                         {% if meeting.downloads_available and meeting.docx_url %}
                         <a class="guest-download-link" href="{{ meeting.docx_url }}" aria-label="Download Word" title="Download Word">
-                            <i class="bi bi-file-earmark-word guest-download-icon" aria-hidden="true"></i>
+                            <img src="{% static 'images/word_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
                         </a>
                         {% else %}
                         <span class="guest-download-disabled" aria-label="Word belum tersedia" title="Word belum tersedia">
-                            <i class="bi bi-file-earmark-word guest-download-icon" aria-hidden="true"></i>
+                            <img src="{% static 'images/word_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
                         </span>
                         {% endif %}
                     </td>
                     <td>
                         {% if meeting.downloads_available and meeting.pdf_url %}
                         <a class="guest-download-link" href="{{ meeting.pdf_url }}" aria-label="Download PDF" title="Download PDF">
-                            <i class="bi bi-file-earmark-pdf guest-download-icon" aria-hidden="true"></i>
+                            <img src="{% static 'images/pdf_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
                         </a>
                         {% else %}
                         <span class="guest-download-disabled" aria-label="PDF belum tersedia" title="PDF belum tersedia">
-                            <i class="bi bi-file-earmark-pdf guest-download-icon" aria-hidden="true"></i>
+                            <img src="{% static 'images/pdf_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
                         </span>
                         {% endif %}
                     </td>
@@ -540,8 +569,8 @@
                     <td class="guest-meeting-name">&nbsp;</td>
                     <td><span class="guest-status-badge">-</span></td>
                     <td><span class="guest-download-disabled">Open</span></td>
-                    <td><span class="guest-download-disabled" aria-label="Word belum tersedia" title="Word belum tersedia"><i class="bi bi-file-earmark-word guest-download-icon" aria-hidden="true"></i></span></td>
-                    <td><span class="guest-download-disabled" aria-label="PDF belum tersedia" title="PDF belum tersedia"><i class="bi bi-file-earmark-pdf guest-download-icon" aria-hidden="true"></i></span></td>
+                    <td><span class="guest-download-disabled" aria-label="Word belum tersedia" title="Word belum tersedia"><img src="{% static 'images/word_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true"></span></td>
+                    <td><span class="guest-download-disabled" aria-label="PDF belum tersedia" title="PDF belum tersedia"><img src="{% static 'images/pdf_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true"></span></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -592,6 +621,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body pt-3">
+                <div id="guestSessionConfirmZoomNotice" class="guest-input-warning d-none" role="alert">Link ini adalah Zoom. Zoom support is coming soon, jadi session belum bisa dibuat dengan link Zoom.</div>
                 <div class="guest-confirm-list">
                     <div class="guest-confirm-item">
                         <span class="guest-confirm-label">Nama Meeting</span>
@@ -661,6 +691,20 @@
         return new Date(joinDateInput.value + 'T' + endTimeInput.value).toISOString();
     }
 
+    function isZoomMeetingUrl(meetingUrl) {
+        const normalizedUrl = meetingUrl.toLowerCase();
+        return normalizedUrl.includes('zoom.us') || normalizedUrl.includes('zoom.com');
+    }
+
+    function updateZoomNotice(meetingUrl) {
+        const zoomNotice = document.getElementById('guestSessionZoomNotice');
+        if (!zoomNotice) {
+            return;
+        }
+
+        zoomNotice.classList.toggle('d-none', !isZoomMeetingUrl(meetingUrl));
+    }
+
     function detectMeetingPlatform(meetingUrl) {
         const normalizedUrl = meetingUrl.toLowerCase();
 
@@ -672,7 +716,7 @@
             };
         }
 
-        if (normalizedUrl.includes('zoom.us') || normalizedUrl.includes('zoom.com')) {
+        if (isZoomMeetingUrl(meetingUrl)) {
             return {
                 name: 'Zoom',
                 icon: 'bi-camera-video-fill',
@@ -710,11 +754,16 @@
         const platformIcon = document.getElementById('guestSessionConfirmPlatformIcon');
         const platformBadge = document.getElementById('guestSessionConfirmPlatform');
         const platformName = document.getElementById('guestSessionConfirmPlatformName');
+        const zoomConfirmNotice = document.getElementById('guestSessionConfirmZoomNotice');
+        const confirmSubmitButton = document.getElementById('guestSessionConfirmSubmit');
+        const isZoomLink = isZoomMeetingUrl(details.meetingUrl);
 
         platformIcon.className = 'bi ' + platform.icon;
         platformBadge.className = 'guest-confirm-platform ' + platform.badgeClass;
         platformBadge.querySelector('i').className = 'bi ' + platform.icon;
         platformName.textContent = platform.name;
+        zoomConfirmNotice.classList.toggle('d-none', !isZoomLink);
+        confirmSubmitButton.disabled = isZoomLink;
 
         document.getElementById('guestSessionConfirmName').textContent = details.sessionName;
         document.getElementById('guestSessionConfirmDate').textContent = formatMeetingDate(details.joinDate);
@@ -731,6 +780,11 @@
             return;
         }
 
+        if (isZoomMeetingUrl(details.meetingUrl)) {
+            window.alert('Zoom support is coming soon. Gunakan Google Meet atau Microsoft Teams dulu.');
+            return;
+        }
+
         if (window.confirm('Buat session untuk ' + details.sessionName + ' pada ' + formatMeetingDate(details.joinDate) + ' jam ' + details.joinTime + ' s/d ' + details.endTime + '?')) {
             submitPendingGuestSession();
         }
@@ -741,6 +795,9 @@
     setupNativePickerInput(document.getElementById('id_join_date'));
     setupNativePickerInput(document.getElementById('id_join_time'));
     setupNativePickerInput(document.getElementById('id_end_time'));
+    document.getElementById('id_meeting_url').addEventListener('input', function(event) {
+        updateZoomNotice(event.currentTarget.value);
+    });
 
     function submitGuestSession(form, formData, csrfToken) {
         const submitButton = document.getElementById('guestSessionSubmit');

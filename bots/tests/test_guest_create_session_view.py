@@ -51,6 +51,7 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertContains(response, "Download")
         self.assertContains(response, "Konfirmasi Meeting")
         self.assertContains(response, "Hari & Tanggal")
+        self.assertContains(response, "Zoom support is coming soon")
         self.assertContains(response, "Calendar visible session")
         self.assertContains(response, "Scheduled")
         self.assertContains(response, "Open")
