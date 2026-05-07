@@ -26,6 +26,10 @@
           "type": "page"
         },
         {
+          "path": "docs/guest_mode_manual.md",
+          "type": "page"
+        },
+        {
           "path": "docs/signed_in_bots.md",
           "type": "page"
         },
