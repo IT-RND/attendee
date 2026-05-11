@@ -90,12 +90,12 @@
         Guest link — view and edit the MoM, transcript, and recording. Anyone with this link can see session media; treat it like a shared folder.
     </p>
 
-    {% if bot.state == BotStates.POST_PROCESSING or bot.state == BotStates.ENDED or bot.state == BotStates.FATAL_ERROR or bot.state == BotStates.DATA_DELETED %}
+    {% if show_meeting_summary_panel %}
         {% include 'projects/partials/project_bot_summary.html' %}
     {% else %}
         <div class="alert alert-info mb-4">
-            The meeting summary tools unlock after this session finishes or reaches a post-meeting state.
-            Current status: <strong>{{ bot.get_state_display }}</strong>.
+            Ringkasan meeting (MoM) dan alat terkait akan muncul setelah ada transkrip atau sesi berada di tahap pasca-meeting.
+            Status saat ini: <strong>{{ bot.get_state_display }}</strong>.
         </div>
     {% endif %}
 

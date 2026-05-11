@@ -241,10 +241,20 @@
             {% if bot.deduplication_key %}
                 <p><strong>Deduplication Key:</strong> {{ bot.deduplication_key }}</p>
             {% endif %}
+            {% if can_manual_complete_session %}
+            <form method="post"
+                  action="{% if bot.session_type == SessionTypes.APP_SESSION %}{% url 'projects:manual-complete-app-session' project.object_id bot.object_id %}{% else %}{% url 'projects:manual-complete-bot-session' project.object_id bot.object_id %}{% endif %}"
+                  class="mt-2"
+                  onsubmit="return confirm('Tandai sesi ini selesai di sistem? Gunakan jika bot macet atau servis tidak merespons.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-warning btn-sm">Selesaikan meeting di dashboard</button>
+                <span class="text-muted small d-block mt-1">Menutup sesi di Boga tanpa bot keluar dari meeting. Transkrip yang sudah masuk tetap dipakai untuk MoM.</span>
+            </form>
+            {% endif %}
         </div>
     </div>
 
-    {% if bot.state == BotStates.POST_PROCESSING or bot.state == BotStates.ENDED or bot.state == BotStates.FATAL_ERROR or bot.state == BotStates.DATA_DELETED %}
+    {% if show_meeting_summary_panel %}
         {% include 'projects/partials/project_bot_summary.html' %}
     {% endif %}
 

@@ -57,6 +57,16 @@ urlpatterns = [
         name="project-bot-detail",
     ),
     path(
+        "<str:object_id>/bots/<str:bot_object_id>/complete-session",
+        projects_views.ManualCompleteBotSessionView.as_view(),
+        name="manual-complete-bot-session",
+    ),
+    path(
+        "<str:object_id>/app_sessions/<str:bot_object_id>/complete-session",
+        projects_views.ManualCompleteBotSessionView.as_view(),
+        name="manual-complete-app-session",
+    ),
+    path(
         "<str:object_id>/bots/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/",
         projects_views.GuestMomPageView.as_view(),
         name="guest-bot-mom-page",

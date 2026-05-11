@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 import stripe
 from allauth.account.utils import send_email_confirmation
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
@@ -50,11 +51,13 @@ from .meeting_summary_utils import (
     get_meeting_summary_availability_message,
     meeting_summary_is_ready,
     save_meeting_summary_artifacts,
+    show_meeting_summary_panel,
 )
 from .models import (
     ApiKey,
     Bot,
     BotEvent,
+    BotEventManager,
     BotEventSubTypes,
     BotEventTypes,
     BotStates,
@@ -1115,6 +1118,8 @@ class ProjectBotDetailView(LoginRequiredMixin, ProjectUrlContextMixin, View):
                 "max_redis_connection_count": max_redis_connection_count,
                 "network_stats": network_stats,
                 "public_ip": public_ip,
+                "show_meeting_summary_panel": show_meeting_summary_panel(bot),
+                "can_manual_complete_session": BotEventManager.can_manual_complete_session(bot),
             }
         )
 
@@ -1148,6 +1153,40 @@ class GenerateMeetingSummaryView(LoginRequiredMixin, ProjectUrlContextMixin, Vie
             "guest_mom_share_url": guest_mom_page_absolute_url(bot) if bot.mom_guest_token else None,
         }
         return render(request, "projects/partials/project_bot_summary.html", context)
+
+
+class ManualCompleteBotSessionView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    """Let a logged-in project user mark a stuck bot session as ended (dashboard recovery)."""
+
+    def post(self, request, object_id, bot_object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+
+        def _detail_redirect():
+            name = (
+                "projects:project-app-session-detail"
+                if bot.session_type == SessionTypes.APP_SESSION
+                else "projects:project-bot-detail"
+            )
+            return redirect(name, object_id=object_id, bot_object_id=bot_object_id)
+
+        if not BotEventManager.can_manual_complete_session(bot):
+            messages.error(request, "This session cannot be manually completed in its current state.")
+            return _detail_redirect()
+        try:
+            BotEventManager.manual_complete_session_for_stuck_bot(bot, resolved_by_user_id=request.user.id)
+        except ValidationError as exc:
+            err_text = str(exc)
+            if getattr(exc, "messages", None):
+                err_text = exc.messages[0]
+            messages.error(request, err_text)
+            return _detail_redirect()
+        messages.success(
+            request,
+            "Session marked as completed. You can generate MoM from the transcript when it is available.",
+        )
+        bot.refresh_from_db()
+        return _detail_redirect()
 
 
 class StreamMeetingSummaryView(LoginRequiredMixin, View):
@@ -1266,6 +1305,9 @@ class GuestMomPageView(View):
             "meeting_summary_ready": meeting_summary_is_ready(bot),
             "meeting_summary_status_message": meeting_summary_status_message,
             "meeting_summary": bot.meeting_summary or "",
+            "show_meeting_summary_panel": show_meeting_summary_panel(bot),
+            "can_share_guest_mom_link": False,
+            "guest_mom_share_url": None,
         }
         context.update(_recordings_partial_context(bot))
         return render(request, "projects/project_guest_mom.html", context)

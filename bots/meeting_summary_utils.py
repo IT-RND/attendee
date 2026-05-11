@@ -51,8 +51,29 @@ def bot_is_in_live_meeting_state(bot):
     return bot.state in _live_summary_states()
 
 
+def show_meeting_summary_panel(bot):
+    """Whether to show transcript + MoM tools on the bot detail / guest MoM page."""
+    if (bot.meeting_summary or "").strip():
+        return True
+    if _build_transcript_text(bot):
+        return True
+    if bot_is_in_live_meeting_state(bot):
+        return True
+    if bot.state in (
+        BotStates.POST_PROCESSING,
+        BotStates.ENDED,
+        BotStates.FATAL_ERROR,
+        BotStates.DATA_DELETED,
+    ):
+        return True
+    return False
+
+
 def bot_can_generate_meeting_summary(bot):
-    return bot_is_in_live_meeting_state(bot) or bot.state == BotStates.POST_PROCESSING or bot.state in BotStates.post_meeting_states()
+    if bot_is_in_live_meeting_state(bot) or bot.state == BotStates.POST_PROCESSING or bot.state in BotStates.post_meeting_states():
+        return True
+    # Any other state (e.g. stuck joining): allow MoM if we already have transcript text in the database.
+    return bool(_build_transcript_text(bot))
 
 
 def meeting_summary_is_ready(bot):

@@ -108,7 +108,7 @@
     </style>
 </head>
 <body>
-    {% if messages and 'accounts' in request.path %}
+    {% if messages and ('accounts' in request.path or '/projects/' in request.path) %}
     <div class="messages position-fixed top-0 start-0 w-100" style="z-index: 1050;">
         {% for message in messages %}
             {% if forloop.last %}

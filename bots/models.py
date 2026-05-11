@@ -1176,6 +1176,7 @@ class BotEventTypes(models.IntegerChoices):
     APP_SESSION_CONNECTED = 101, "App Session Connected"
     APP_SESSION_DISCONNECT_REQUESTED = 102, "App Session Disconnect Requested"
     APP_SESSION_DISCONNECTED = 103, "App Session Disconnected"
+    MANUAL_SESSION_COMPLETED = 104, "Manual session completed (user resolved stuck bot)"
 
     @classmethod
     def type_to_api_code(cls, value):
@@ -1204,6 +1205,7 @@ class BotEventTypes(models.IntegerChoices):
             cls.APP_SESSION_CONNECTED: "app_session_connected",
             cls.APP_SESSION_DISCONNECT_REQUESTED: "app_session_disconnect_requested",
             cls.APP_SESSION_DISCONNECTED: "app_session_disconnected",
+            cls.MANUAL_SESSION_COMPLETED: "manual_session_completed",
         }
         return mapping.get(value)
 
@@ -1532,11 +1534,46 @@ class BotEventManager:
             "from": BotStates.DISCONNECTING,
             "to": BotStates.POST_PROCESSING,
         },
+        BotEventTypes.MANUAL_SESSION_COMPLETED: {
+            "from": [
+                BotStates.JOINING,
+                BotStates.WAITING_ROOM,
+                BotStates.JOINED_NOT_RECORDING,
+                BotStates.JOINED_RECORDING,
+                BotStates.JOINED_RECORDING_PAUSED,
+                BotStates.JOINED_RECORDING_PERMISSION_DENIED,
+                BotStates.LEAVING,
+                BotStates.POST_PROCESSING,
+                BotStates.JOINING_BREAKOUT_ROOM,
+                BotStates.LEAVING_BREAKOUT_ROOM,
+                BotStates.FATAL_ERROR,
+                BotStates.CONNECTING,
+                BotStates.CONNECTED,
+                BotStates.DISCONNECTING,
+            ],
+            "to": BotStates.ENDED,
+        },
     }
 
     @classmethod
     def event_can_be_created_for_state(cls, event_type: BotEventTypes, state: BotStates):
         return state in cls.VALID_TRANSITIONS[event_type]["from"]
+
+    @classmethod
+    def manual_complete_session_for_stuck_bot(cls, bot: Bot, *, resolved_by_user_id: int | None = None, reason: str = ""):
+        """Mark the bot session as ended from the dashboard when the worker is gone or stuck."""
+        metadata = {}
+        if resolved_by_user_id is not None:
+            metadata["resolved_by_user_id"] = resolved_by_user_id
+        if reason:
+            metadata["reason"] = reason
+        return cls.create_event(bot, BotEventTypes.MANUAL_SESSION_COMPLETED, event_metadata=metadata or None)
+
+    @classmethod
+    def can_manual_complete_session(cls, bot: Bot) -> bool:
+        if bot.state in (BotStates.READY, BotStates.SCHEDULED, BotStates.STAGED, BotStates.ENDED, BotStates.DATA_DELETED):
+            return False
+        return cls.event_can_be_created_for_state(BotEventTypes.MANUAL_SESSION_COMPLETED, bot.state)
 
     @classmethod
     def set_requested_bot_action_taken_at(cls, bot: Bot):
