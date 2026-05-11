@@ -897,11 +897,14 @@
         errorContainer.textContent = '';
         successContainer.textContent = '';
 
+        let confirmJoinTime;
+        let confirmEndTime;
+
         try {
             let joinAtValue = buildIsoDateTime(joinDateInput, joinTimeInput, 'Meeting starts');
             const endAtValue = buildEndIsoDateTime(joinDateInput, joinTimeInput, endTimeInput);
-            let confirmJoinTime = joinTimeInput.value;
-            const confirmEndTime = endTimeInput.value;
+            confirmJoinTime = joinTimeInput.value;
+            confirmEndTime = endTimeInput.value;
 
             if (joinAtValue && endAtValue) {
                 const joinMs = Date.parse(joinAtValue);
