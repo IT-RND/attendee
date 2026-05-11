@@ -18,7 +18,7 @@ Catatan: Untuk saat ini, gunakan link Google Meet atau Microsoft Teams. Dukungan
 
 ## Akses Halaman
 
-Buka link aplikasi Boga Assistant yang diberikan oleh tim. Dari halaman utama, pengguna akan diarahkan otomatis ke halaman pembuatan meeting.
+Buka link aplikasi Boga Assistant (meeting-assistant.boga.co.id) Dari halaman utama, pengguna akan diarahkan otomatis ke halaman pembuatan meeting.
 
 Halaman ini tidak membutuhkan login.
 

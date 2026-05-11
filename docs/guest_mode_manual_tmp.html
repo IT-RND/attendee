@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>guest_mode_manual.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="manual-guide-boga-meeting-assistant">Manual Guide Boga Meeting Assistant</h1>
+<p>Panduan ini menjelaskan cara membuat jadwal meeting dengan Boga Assistant tanpa perlu login. Pengguna cukup mengisi nama meeting, tanggal, jam, dan link meeting. Setelah itu, Boga Assistant akan masuk ke meeting sesuai jadwal dan menyediakan halaman hasil meeting.</p>
+<h2 id="ringkasan-fitur">Ringkasan Fitur</h2>
+<p>Dengan Boga Meeting Assistant, pengguna dapat:</p>
+<ol>
+<li>Membuat jadwal meeting tanpa akun.</li>
+<li>Menjadwalkan Boga Assistant berdasarkan tanggal, jam mulai, dan jam selesai.</li>
+<li>Melihat daftar meeting yang sudah dibuat.</li>
+<li>Membuka halaman hasil meeting.</li>
+<li>Melihat transcript dan video rekaman.</li>
+<li>Mengedit catatan meeting atau MoM.</li>
+<li>Mengunduh MoM dalam format Word atau PDF.</li>
+</ol>
+<p>Catatan: Untuk saat ini, gunakan link Google Meet atau Microsoft Teams. Dukungan Zoom masih dalam proses.</p>
+<h2 id="akses-halaman">Akses Halaman</h2>
+<p>Buka link aplikasi Boga Assistant (meeting-assistant.boga.co.id) Dari halaman utama, pengguna akan diarahkan otomatis ke halaman pembuatan meeting.</p>
+<p>Halaman ini tidak membutuhkan login.</p>
+<p><img src="file:///Users/farizreynaldo/Desktop/Project/attendee/docs/images/guest_mode/guest_session_form_and_table.png" alt="Halaman Boga Assistant dengan form dan daftar meeting"></p>
+<h2 id="membuat-meeting-baru">Membuat Meeting Baru</h2>
+<ol>
+<li>Buka halaman Boga Assistant.</li>
+<li>Isi <code>Nama Meeting</code> dengan nama meeting yang mudah dikenali.</li>
+<li>Pilih <code>Tanggal Meeting</code>.</li>
+<li>Pilih <code>Jam Meeting</code>:
+<ul>
+<li>Kolom pertama adalah jam mulai.</li>
+<li>Kolom kedua adalah jam selesai.</li>
+</ul>
+</li>
+<li>Isi <code>Link Meeting</code> dengan link Google Meet atau Microsoft Teams.</li>
+<li>Klik <code>Submit</code>.</li>
+<li>Periksa detail pada modal <code>Konfirmasi Meeting</code>.</li>
+<li>Jika data sudah benar, klik <code>Buat Session</code>.</li>
+</ol>
+<p>Jika berhasil, aplikasi akan menampilkan pesan sukses dan link <code>Buka halaman session</code>. Simpan link tersebut karena link ini dipakai untuk membuka hasil meeting.</p>
+<h2 id="perilaku-boga-assistant">Perilaku Boga Assistant</h2>
+<p>Jika meeting dijadwalkan untuk waktu mendatang, Boga Assistant akan masuk otomatis pada jam yang dipilih.</p>
+<p>Jika meeting dibuat untuk waktu yang sedang berjalan, Boga Assistant akan mencoba masuk segera.</p>
+<p>Saat Boga Assistant masuk meeting, host mungkin perlu menerima bot dari waiting room.</p>
+<h2 id="daftar-meeting">Daftar Meeting</h2>
+<p>Di bawah form, ada tabel daftar meeting. Kolom yang tersedia:</p>
+<ol>
+<li><code>Tanggal Meeting</code>: tanggal dan jam meeting.</li>
+<li><code>Nama Meeting</code>: nama yang diisi saat membuat session.</li>
+<li><code>Status</code>: kondisi meeting atau Boga Assistant.</li>
+<li><code>Session</code>: tombol <code>Open</code> untuk membuka halaman hasil meeting.</li>
+<li><code>Download</code>: tombol Word dan PDF untuk mengunduh MoM jika sudah tersedia.</li>
+</ol>
+<p>Jika daftar meeting lebih dari satu halaman, gunakan tombol <code>Prev</code>, nomor halaman, dan <code>Next</code>.</p>
+<h2 id="membuka-halaman-session">Membuka Halaman Session</h2>
+<p>Klik <code>Open</code> pada tabel meeting, atau klik <code>Buka halaman session</code> setelah membuat session baru.</p>
+<p>Di halaman session, pengguna dapat:</p>
+<ol>
+<li>Melihat status meeting.</li>
+<li>Melihat transcript dan recording setelah tersedia.</li>
+<li>Membuat ringkasan meeting.</li>
+<li>Mengedit MoM di editor.</li>
+<li>Menyimpan perubahan MoM.</li>
+<li>Mengunduh MoM dalam format PDF atau DOCX.</li>
+</ol>
+<p>Penting: siapa pun yang memiliki link halaman session dapat membuka hasil meeting dan mengedit MoM. Jangan bagikan link ke orang yang tidak berkepentingan.</p>
+<p>Contoh tampilan halaman session saat MoM sudah tersedia:</p>
+<p><img src="file:///Users/farizreynaldo/Desktop/Project/attendee/docs/images/guest_mode/session_summary_editor.png" alt="Editor MoM pada halaman hasil meeting"></p>
+<h2 id="edit-mom">Edit MoM</h2>
+<p>MoM adalah catatan atau ringkasan hasil meeting. Untuk mengedit MoM:</p>
+<ol>
+<li>Buka halaman session dari tombol <code>Open</code> atau link <code>Buka halaman session</code>.</li>
+<li>Tunggu sampai panel <code>Meeting Summary</code> muncul.</li>
+<li>Klik area isi MoM di bawah toolbar editor.</li>
+<li>Ubah teks, heading, bullet, checklist, atau format lain sesuai kebutuhan.</li>
+<li>Klik <code>Save</code> jika tombol muncul setelah ada perubahan.</li>
+<li>Setelah tersimpan, klik <code>PDF</code> atau <code>DOCX</code> untuk mengunduh dokumen terbaru.</li>
+</ol>
+<p>Jika MoM belum tersedia, klik <code>Generate Summary</code> terlebih dahulu. Jika MoM sudah ada dan perlu dibuat ulang, klik <code>Regenerate</code>.</p>
+<h2 id="lihat-transcript-dan-video-session">Lihat Transcript dan Video Session</h2>
+<p>Pada halaman session, scroll ke panel <code>Transcript &amp; recording</code>.</p>
+<p><img src="file:///Users/farizreynaldo/Desktop/Project/attendee/docs/images/guest_mode/session_transcript_recording.png" alt="Transcript dan video recording pada halaman hasil meeting"></p>
+<p>Di panel ini, pengguna dapat:</p>
+<ol>
+<li>Membaca transcript meeting di sisi kiri.</li>
+<li>Melihat pembicara dan waktu percakapan pada transcript.</li>
+<li>Memutar video recording di sisi kanan.</li>
+<li>Menggunakan kontrol video untuk play, pause, volume, dan fullscreen.</li>
+</ol>
+<p>Jika video belum muncul, kemungkinan rekaman masih diproses atau meeting belum selesai.</p>
+<h2 id="download-word-dan-pdf">Download Word dan PDF</h2>
+<p>Tombol Word dan PDF akan aktif jika MoM sudah tersedia. Jika tombol belum bisa diklik, biasanya penyebabnya:</p>
+<ol>
+<li>Meeting belum selesai.</li>
+<li>Transcript atau rekaman masih diproses.</li>
+<li>MoM belum dibuat.</li>
+<li>MoM belum berhasil disimpan.</li>
+</ol>
+<p>Buka halaman session, buat atau simpan MoM terlebih dahulu, lalu gunakan tombol download.</p>
+<h2 id="batasan-penggunaan">Batasan Penggunaan</h2>
+<p>Maksimal ada 3 meeting yang bisa berjalan di waktu bersamaan.</p>
+<p>Jika sudah ada 3 meeting pada waktu yang sama, Boga Assistant tidak bisa dibuat untuk jadwal tersebut. Coba pilih jam lain atau tunggu sampai salah satu meeting selesai.</p>
+<p>Pengguna yang login menggunakan batas akun masing-masing.</p>
+<h2 id="error-umum">Error Umum</h2>
+<p><code>Session name is required.</code></p>
+<p>Nama meeting belum diisi. Isi <code>Nama Meeting</code>, lalu coba lagi.</p>
+<p><code>Meeting link is required.</code></p>
+<p>Link meeting belum diisi. Masukkan link Google Meet atau Microsoft Teams.</p>
+<p><code>Calendar time must be a valid date and time.</code></p>
+<p>Tanggal atau jam mulai tidak valid. Pilih ulang tanggal dan jam dari pilihan yang tersedia.</p>
+<p><code>Meeting end time must be after the meeting start time.</code></p>
+<p>Jam selesai harus lebih besar dari jam mulai.</p>
+<p><code>Boga Assistant cannot join right now because there are already 3 concurrent guest sessions.</code></p>
+<p>Jadwal sedang penuh. Pilih jam lain atau coba lagi setelah salah satu meeting selesai.</p>
+<p><code>Guest sessions are not configured yet because no project exists.</code></p>
+<p>Sistem belum siap digunakan. Hubungi tim support atau admin.</p>
+<h2 id="tips-penggunaan">Tips Penggunaan</h2>
+<ol>
+<li>Pastikan link meeting benar sebelum klik <code>Buat Session</code>.</li>
+<li>Buat jadwal beberapa menit sebelum meeting dimulai agar host sempat menerima Boga Assistant.</li>
+<li>Jangan menutup link halaman session jika masih ingin membuka hasil meeting.</li>
+<li>Jangan membagikan link session ke orang yang tidak berkepentingan.</li>
+<li>Setelah meeting selesai, tunggu beberapa saat sampai transcript, video, dan MoM selesai diproses.</li>
+</ol>
+
+</body>
+</html>
