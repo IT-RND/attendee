@@ -1884,7 +1884,7 @@ def _guest_session_calendar(project, raw_month):
         events_by_day.setdefault(day_key, []).append(
             {
                 "time": _guest_session_event_time_range(local_join_at, metadata),
-                "name": metadata.get("session_name") or bot.name,
+                "name": bot.session_display_name,
                 "status": BotStates(bot.state).label,
             }
         )
@@ -1947,7 +1947,7 @@ def _guest_session_meeting_rows(project, raw_page):
             {
                 "date": local_meeting_at.strftime("%d %b %Y"),
                 "time": _guest_session_event_time_range(local_meeting_at, metadata),
-                "name": metadata.get("session_name") or bot.name,
+                "name": bot.session_display_name,
                 "status": BotStates(bot.state).label,
                 "session_url": guest_mom_page_absolute_url(bot),
                 "docx_url": summary_urls["docx"] if summary_urls else "",

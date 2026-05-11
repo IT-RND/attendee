@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import zipfile
+from datetime import datetime, timezone as dt_timezone
 from html import unescape as html_unescape
 from io import BytesIO
 from xml.sax.saxutils import escape
@@ -10,6 +11,7 @@ import requests
 from django.core.files.base import ContentFile
 from django.utils import timezone
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -21,6 +23,93 @@ from .utils import generate_aggregated_utterances
 logger = logging.getLogger(__name__)
 
 MAX_SUMMARY_TRANSCRIPT_CHARS = 120000
+
+_ID_MONTHS = (
+    "",
+    "Januari",
+    "Februari",
+    "Maret",
+    "April",
+    "Mei",
+    "Juni",
+    "Juli",
+    "Agustus",
+    "September",
+    "Oktober",
+    "November",
+    "Desember",
+)
+
+
+def _format_date_indonesia(dt):
+    """Contoh: 17 Agustus 1945 (dt harus naive/local atau aware setelah localtime)."""
+    return f"{dt.day} {_ID_MONTHS[dt.month]} {dt.year}"
+
+
+def _format_datetime_indonesia(dt):
+    """Contoh: 17 Agustus 1945, 14:30"""
+    return f"{_format_date_indonesia(dt)}, {dt.strftime('%H:%M')}"
+
+
+def _participant_display_names_for_mom(bot):
+    """Human-facing participant names for MoM metadata (excludes the bot attendee)."""
+    names = []
+    seen = set()
+    for participant in bot.participants.all().order_by("full_name", "uuid"):
+        if participant.is_the_bot:
+            continue
+        label = (participant.full_name or "").strip() or (participant.uuid or "").strip()
+        if not label or label in seen:
+            continue
+        seen.add(label)
+        names.append(label)
+    if names:
+        return sorted(names, key=str.casefold)
+
+    for recording in bot.recordings.all().prefetch_related("utterances__participant"):
+        for utterance in generate_aggregated_utterances(recording):
+            p = utterance.participant
+            if p.is_the_bot:
+                continue
+            label = (p.full_name or "").strip() or (p.uuid or "").strip()
+            if label and label not in seen:
+                seen.add(label)
+                names.append(label)
+    return sorted(names, key=str.casefold)
+
+
+def _meeting_schedule_text(bot):
+    """Perkiraan jendela rapat; tanggal dalam format Indonesia (contoh 17 Agustus 1945)."""
+    if bot.first_heartbeat_timestamp is not None:
+        start_dt = timezone.localtime(datetime.fromtimestamp(bot.first_heartbeat_timestamp, tz=dt_timezone.utc))
+    elif bot.join_at:
+        start_dt = timezone.localtime(bot.join_at)
+    else:
+        start_dt = timezone.localtime(bot.created_at)
+
+    if (
+        bot.first_heartbeat_timestamp is not None
+        and bot.last_heartbeat_timestamp is not None
+        and bot.last_heartbeat_timestamp > bot.first_heartbeat_timestamp
+    ):
+        end_dt = timezone.localtime(datetime.fromtimestamp(bot.last_heartbeat_timestamp, tz=dt_timezone.utc))
+        if start_dt.date() == end_dt.date():
+            segment = (
+                f"{_format_date_indonesia(start_dt)}, "
+                f"{start_dt.strftime('%H:%M')}–{end_dt.strftime('%H:%M')}"
+            )
+        else:
+            segment = f"{_format_datetime_indonesia(start_dt)} – {_format_datetime_indonesia(end_dt)}"
+        return f"{segment} (perkiraan dari aktivitas bot; zona waktu lokal)"
+
+    return f"{_format_datetime_indonesia(start_dt)} (perkiraan dari jadwal / aktivitas bot; zona waktu lokal)"
+
+
+def _mom_participants_comma_line_for_prompt(names):
+    """Satu baris: nama1, nama2, nama3 (urut alfabet)."""
+    if not names:
+        return "(Tidak ada peserta tercatat di sistem selain bot—biarkan GPT menuliskan \"Tidak tercatat\" di MoM.)"
+    return ", ".join(names)
 
 
 class MeetingSummaryError(Exception):
@@ -286,10 +375,17 @@ def _build_transcript_text(bot):
 
 
 def _build_summary_prompt(bot, transcript_text):
-    meeting_name = bot.name or bot.object_id
+    meeting_name = bot.session_display_name
+    schedule_text = _meeting_schedule_text(bot)
+    participant_names = _participant_display_names_for_mom(bot)
+    participants_block = _mom_participants_comma_line_for_prompt(participant_names)
     return f"""Buat ringkasan rapat berikut dalam Bahasa Indonesia menggunakan format Markdown.
 
 Gunakan format ini:
+## Informasi Rapat
+- **Tanggal & waktu:** (cantumkan persis seperti data sistem; format tanggal Indonesia, contoh: 17 Agustus 1945, 10:00; jika ada rentang waktu satu hari, boleh 17 Agustus 1945, 10:00–11:30.)
+- **Peserta:** (satu baris: nama dipisahkan koma dan spasi ke arah kanan membaca, contoh: Orang Pertama, Orang Kedua, Orang Ketiga — salin nama persis dari data sistem; urut alfabet; jangan menambah orang yang tidak ada di daftar kecuali eksplisit hadir di transkrip.)
+
 ## Ringkasan Singkat
 (tulis ringkasan di sini)
 
@@ -308,11 +404,16 @@ Gunakan format ini:
 Aturan:
 - Gunakan Bahasa Indonesia yang natural dan jelas.
 - Gunakan format Markdown yang baik (heading, bullet points, tabel).
+- Bagian "Informasi Rapat" wajib ada di paling atas dan harus memuat tanggal & waktu serta daftar peserta sesuai data sistem di bawah (boleh menambahkan catatan ringkas dari transkrip hanya sebagai penjelasan, tanpa mengubah daftar nama/waktu sistem).
 - Bagian "Tindak Lanjut" wajib memakai tabel Markdown dengan kolom: Tindak Lanjut, PIC, Target Waktu, Status.
 - Jika detail tertentu tidak ada di transkrip, jangan mengarang.
 - Jika tidak ada keputusan yang jelas, katakan belum disebutkan.
 - Jika tidak ada tindak lanjut yang jelas, tetap buat tabel "Tindak Lanjut" dan isi sel dengan "Belum disebutkan" seperlunya.
 - Tetap ringkas tetapi berguna untuk dibaca ulang oleh peserta rapat.
+
+Data sistem untuk bagian Informasi Rapat (gunakan ini; jangan mengada-adakan tanggal, jam, atau nama peserta):
+- Tanggal & waktu rapat (perkiraan): {schedule_text}
+- Peserta (satu baris, koma+spasi): {participants_block}
 
 Nama rapat: {meeting_name}
 Bot ID: {bot.object_id}
@@ -345,20 +446,25 @@ def _build_summary_pdf(bot, summary_text):
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        title=f"Meeting Summary - {bot.name or bot.object_id}",
+        title=f"Meeting Summary - {bot.session_display_name}",
         leftMargin=16 * mm,
         rightMargin=16 * mm,
         topMargin=16 * mm,
         bottomMargin=16 * mm,
     )
     styles = _build_pdf_styles()
-    generated_at = timezone.localtime(timezone.now()).strftime("%Y-%m-%d %H:%M")
+    generated_at = _format_datetime_indonesia(timezone.localtime(timezone.now()))
+    participant_names = _participant_display_names_for_mom(bot)
+    participants_plain = ", ".join(participant_names) if participant_names else "Tidak tercatat"
 
     story = [
-        Paragraph(escape(bot.name or "Meeting Summary"), styles["SummaryTitle"]),
+        Paragraph(escape(bot.session_display_name or "Meeting Summary"), styles["SummaryTitle"]),
         Spacer(1, 4),
         Paragraph(f"Bot ID: {escape(bot.object_id)}", styles["SummaryMeta"]),
-        Paragraph(f"Generated: {escape(generated_at)}", styles["SummaryMeta"]),
+        Paragraph(f"Tanggal & jam rapat (perkiraan): {escape(_meeting_schedule_text(bot))}", styles["SummaryMeta"]),
+        Paragraph(escape("Peserta:"), styles["SummaryMeta"]),
+        Paragraph(escape(participants_plain), styles["SummaryMetaRight"]),
+        Paragraph(f"Dibuat: {escape(generated_at)}", styles["SummaryMeta"]),
         Spacer(1, 10),
     ]
     story.extend(_build_pdf_story(summary_text, styles))
@@ -410,7 +516,7 @@ def _build_summary_docx(bot, summary_text):
                    xmlns:dcterms="http://purl.org/dc/terms/"
                    xmlns:dcmitype="http://purl.org/dc/dcmitype/"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:title>{escape(bot.name or "Meeting Summary")}</dc:title>
+  <dc:title>{escape(bot.session_display_name or "Meeting Summary")}</dc:title>
   <dc:creator>Cursor</dc:creator>
   <cp:lastModifiedBy>Cursor</cp:lastModifiedBy>
   <dcterms:created xsi:type="dcterms:W3CDTF">{created_at}</dcterms:created>
@@ -490,11 +596,16 @@ def _build_docx_styles_xml():
 
 
 def _build_docx_document_xml(bot, summary_text, generated_at):
-    generated_at_display = generated_at.strftime("%Y-%m-%d %H:%M")
+    generated_at_display = _format_datetime_indonesia(generated_at)
+    participant_names = _participant_display_names_for_mom(bot)
+    participants_display = ", ".join(participant_names) if participant_names else "Tidak tercatat"
     body_elements = [
-        _docx_paragraph_xml(bot.name or "Meeting Summary", style="Title"),
+        _docx_paragraph_xml(bot.session_display_name or "Meeting Summary", style="Title"),
         _docx_paragraph_xml(f"Bot ID: {bot.object_id}", style="Subtitle"),
-        _docx_paragraph_xml(f"Generated: {generated_at_display}", style="Subtitle"),
+        _docx_paragraph_xml(f"Tanggal & jam rapat (perkiraan): {_meeting_schedule_text(bot)}", style="Subtitle"),
+        _docx_paragraph_xml("Peserta:", style="Subtitle"),
+        _docx_paragraph_xml(participants_display, style="Subtitle", align="right"),
+        _docx_paragraph_xml(f"Dibuat: {generated_at_display}", style="Subtitle"),
     ]
     body_elements.extend(_build_docx_body_elements(summary_text))
     body_xml = "".join(body_elements) or _docx_paragraph_xml("No summary content available.")
@@ -607,10 +718,13 @@ def _build_docx_body_elements(summary_text):
     return elements
 
 
-def _docx_paragraph_xml(text, style=None, bold=False):
-    paragraph_properties = ""
+def _docx_paragraph_xml(text, style=None, bold=False, align=None):
+    ppr_inner = []
     if style:
-        paragraph_properties = f"<w:pPr><w:pStyle w:val=\"{style}\"/></w:pPr>"
+        ppr_inner.append(f"<w:pStyle w:val=\"{style}\"/>")
+    if align == "right":
+        ppr_inner.append("<w:jc w:val=\"right\"/>")
+    paragraph_properties = f"<w:pPr>{''.join(ppr_inner)}</w:pPr>" if ppr_inner else ""
     return f"<w:p>{paragraph_properties}{_docx_runs_xml(_strip_inline_markdown(text), bold=bold)}</w:p>"
 
 
@@ -688,6 +802,14 @@ def _build_pdf_styles():
             leading=12,
             textColor=colors.HexColor("#6b7280"),
             spaceAfter=2,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="SummaryMetaRight",
+            parent=styles["SummaryMeta"],
+            alignment=TA_RIGHT,
+            spaceAfter=4,
         )
     )
     styles.add(

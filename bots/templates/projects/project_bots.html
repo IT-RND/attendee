@@ -224,7 +224,7 @@
                         hx-push-url="true">
                         <td><small>{{ bot.object_id }}</small></td>
                         {% if session_type == SessionTypes.BOT %}
-                            <td><small class="bot-name">{{ bot.name }}</small></td>
+                            <td><small class="bot-name">{{ bot.session_display_name }}</small></td>
                             <td><span class="meeting-url" title="{{ bot.meeting_url }}">{{ bot.meeting_url }}</span></td>
                         {% endif %}
                         <td>

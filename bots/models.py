@@ -726,6 +726,15 @@ class Bot(models.Model):
         help_text="Secret segment for guest MoM link (no login).",
     )
 
+    @property
+    def session_display_name(self) -> str:
+        """User-visible meeting title (guest flow stores this in metadata.session_name; bot.name stays the join name)."""
+        meta = self.metadata or {}
+        label = (meta.get("session_name") or "").strip()
+        if label:
+            return label
+        return self.name or self.object_id
+
     def delete_data(self):
         # Check if bot is in a state where the data deleted event can be created
         if not BotEventManager.event_can_be_created_for_state(BotEventTypes.DATA_DELETED, self.state):

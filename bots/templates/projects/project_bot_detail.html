@@ -212,7 +212,7 @@
         <div class="col-md-6">
             <p><strong>ID:</strong> {{ bot.object_id }}</p>
             {% if bot.session_type == SessionTypes.BOT %}
-                <p><strong>Name:</strong> {{ bot.name }}</p>
+                <p><strong>Name:</strong> {{ bot.session_display_name }}</p>
             {% endif %}
             <p><strong>Created:</strong> {{ bot.created_at|date:"M d, Y H:i" }}</p>
             {% if bot.join_at %}

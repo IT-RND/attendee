@@ -401,6 +401,30 @@ class SaveMeetingSummaryViewTest(MeetingSummaryFileFieldMixin, TestCase):
         self.assertIn("| Tindak Lanjut | PIC | Target Waktu | Status |", prompt)
         self.assertIn('Bagian "Tindak Lanjut" wajib memakai tabel Markdown', prompt)
 
+    def test_summary_prompt_prefers_metadata_session_name(self):
+        self.bot.metadata = {"session_name": "Rapat Koordinasi Q1"}
+        self.bot.save(update_fields=["metadata"])
+        prompt = meeting_summary_utils._build_summary_prompt(self.bot, "A: Halo.")
+
+        self.assertIn("Nama rapat: Rapat Koordinasi Q1", prompt)
+
+    def test_summary_prompt_includes_meeting_schedule_and_participants(self):
+        Participant.objects.create(bot=self.bot, uuid="speaker-test", full_name="Fariz Tester")
+        Participant.objects.create(bot=self.bot, uuid="speaker-2", full_name="Ada")
+        self.bot.first_heartbeat_timestamp = 1_700_000_000
+        self.bot.last_heartbeat_timestamp = 1_700_000_300
+        self.bot.save(update_fields=["first_heartbeat_timestamp", "last_heartbeat_timestamp"])
+
+        schedule = meeting_summary_utils._meeting_schedule_text(self.bot)
+        prompt = meeting_summary_utils._build_summary_prompt(self.bot, "Ping.")
+
+        self.assertIn("## Informasi Rapat", prompt)
+        self.assertIn("- **Tanggal & waktu:**", prompt)
+        self.assertIn("- **Peserta:**", prompt)
+        self.assertIn(schedule, prompt)
+        self.assertIn("Ada, Fariz Tester", prompt)
+        self.assertRegex(schedule, r"\d{1,2}\s+\w+\s+\d{4}")
+
     def test_save_summary_normalizes_html_table_to_markdown(self):
         html_summary = """
 ## Tindak Lanjut

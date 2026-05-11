@@ -191,7 +191,7 @@
                     <td>
                         {% if transaction.bot %}
                         <a href="{% url 'projects:project-bot-detail' project.object_id transaction.bot.object_id %}">
-                            {{ transaction.bot.name }}
+                            {{ transaction.bot.session_display_name }}
                         </a>
                         {% else %}
                         N/A
