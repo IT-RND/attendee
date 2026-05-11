@@ -667,6 +667,14 @@
         });
     }
 
+    function formatLocalHmFromDate(date) {
+        return new Intl.DateTimeFormat('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }).format(date);
+    }
+
     function buildIsoDateTime(dateInput, timeInput, fieldLabel) {
         if (!dateInput.value && !timeInput.value) {
             return '';
@@ -890,8 +898,20 @@
         successContainer.textContent = '';
 
         try {
-            const joinAtValue = buildIsoDateTime(joinDateInput, joinTimeInput, 'Meeting starts');
+            let joinAtValue = buildIsoDateTime(joinDateInput, joinTimeInput, 'Meeting starts');
             const endAtValue = buildEndIsoDateTime(joinDateInput, joinTimeInput, endTimeInput);
+            let confirmJoinTime = joinTimeInput.value;
+            const confirmEndTime = endTimeInput.value;
+
+            if (joinAtValue && endAtValue) {
+                const joinMs = Date.parse(joinAtValue);
+                const endMs = Date.parse(endAtValue);
+                const nowMs = Date.now();
+                if (joinMs < nowMs && nowMs < endMs) {
+                    joinAtValue = new Date(nowMs).toISOString();
+                    confirmJoinTime = formatLocalHmFromDate(new Date(nowMs));
+                }
+            }
 
             if (joinAtValue && endAtValue && endAtValue <= joinAtValue) {
                 throw new Error('Meeting end time must be after the meeting start time.');
@@ -924,8 +944,8 @@
             sessionName: sessionNameInput.value.trim(),
             meetingUrl: meetingUrlInput.value.trim(),
             joinDate: joinDateInput.value,
-            joinTime: joinTimeInput.value,
-            endTime: endTimeInput.value
+            joinTime: confirmJoinTime,
+            endTime: confirmEndTime
         });
     });
 </script>

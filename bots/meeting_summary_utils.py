@@ -11,7 +11,6 @@ import requests
 from django.core.files.base import ContentFile
 from django.utils import timezone
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -382,12 +381,11 @@ def _build_summary_prompt(bot, transcript_text):
     return f"""Buat ringkasan rapat berikut dalam Bahasa Indonesia menggunakan format Markdown.
 
 Gunakan format ini:
-## Informasi Rapat
-- **Tanggal & waktu:** (cantumkan persis seperti data sistem; format tanggal Indonesia, contoh: 17 Agustus 1945, 10:00; jika ada rentang waktu satu hari, boleh 17 Agustus 1945, 10:00–11:30.)
-- **Peserta:** (satu baris: nama dipisahkan koma dan spasi ke arah kanan membaca, contoh: Orang Pertama, Orang Kedua, Orang Ketiga — salin nama persis dari data sistem; urut alfabet; jangan menambah orang yang tidak ada di daftar kecuali eksplisit hadir di transkrip.)
-
 ## Ringkasan Singkat
-(tulis ringkasan di sini)
+Mulai bagian ini dengan dua baris berikut (gunakan data sistem persis di bawah; jangan buat heading terpisah "Informasi Rapat"):
+- **Tanggal & waktu:** (format tanggal Indonesia, contoh: 17 Agustus 1945, 10:00; jika rentang satu hari: 17 Agustus 1945, 10:00–11:30.)
+- **Peserta:** (satu baris: nama dipisahkan koma dan spasi, contoh: Orang Pertama, Orang Kedua — salin nama persis dari data sistem; urut alfabet; jangan menambah orang yang tidak ada di daftar kecuali eksplisit hadir di transkrip.)
+Lanjutkan dengan paragraf ringkasan narasi rapat (apa yang dibahas, konteks singkat).
 
 ## Poin Penting
 - poin 1
@@ -404,14 +402,14 @@ Gunakan format ini:
 Aturan:
 - Gunakan Bahasa Indonesia yang natural dan jelas.
 - Gunakan format Markdown yang baik (heading, bullet points, tabel).
-- Bagian "Informasi Rapat" wajib ada di paling atas dan harus memuat tanggal & waktu serta daftar peserta sesuai data sistem di bawah (boleh menambahkan catatan ringkas dari transkrip hanya sebagai penjelasan, tanpa mengubah daftar nama/waktu sistem).
+- Jangan buat section "## Informasi Rapat" terpisah; semua tanggal/jam dan daftar peserta wajib di awal "## Ringkasan Singkat" sesuai data sistem (boleh satu paragraf penjelasan singkat dari transkrip setelah dua bullet tersebut, tanpa mengubah daftar nama/waktu sistem).
 - Bagian "Tindak Lanjut" wajib memakai tabel Markdown dengan kolom: Tindak Lanjut, PIC, Target Waktu, Status.
 - Jika detail tertentu tidak ada di transkrip, jangan mengarang.
 - Jika tidak ada keputusan yang jelas, katakan belum disebutkan.
 - Jika tidak ada tindak lanjut yang jelas, tetap buat tabel "Tindak Lanjut" dan isi sel dengan "Belum disebutkan" seperlunya.
 - Tetap ringkas tetapi berguna untuk dibaca ulang oleh peserta rapat.
 
-Data sistem untuk bagian Informasi Rapat (gunakan ini; jangan mengada-adakan tanggal, jam, atau nama peserta):
+Data sistem untuk baris Tanggal & waktu dan Peserta di Ringkasan Singkat (gunakan persis; jangan mengada-adakan):
 - Tanggal & waktu rapat (perkiraan): {schedule_text}
 - Peserta (satu baris, koma+spasi): {participants_block}
 
@@ -454,16 +452,11 @@ def _build_summary_pdf(bot, summary_text):
     )
     styles = _build_pdf_styles()
     generated_at = _format_datetime_indonesia(timezone.localtime(timezone.now()))
-    participant_names = _participant_display_names_for_mom(bot)
-    participants_plain = ", ".join(participant_names) if participant_names else "Tidak tercatat"
 
     story = [
         Paragraph(escape(bot.session_display_name or "Meeting Summary"), styles["SummaryTitle"]),
         Spacer(1, 4),
         Paragraph(f"Bot ID: {escape(bot.object_id)}", styles["SummaryMeta"]),
-        Paragraph(f"Tanggal & jam rapat (perkiraan): {escape(_meeting_schedule_text(bot))}", styles["SummaryMeta"]),
-        Paragraph(escape("Peserta:"), styles["SummaryMeta"]),
-        Paragraph(escape(participants_plain), styles["SummaryMetaRight"]),
         Paragraph(f"Dibuat: {escape(generated_at)}", styles["SummaryMeta"]),
         Spacer(1, 10),
     ]
@@ -597,14 +590,9 @@ def _build_docx_styles_xml():
 
 def _build_docx_document_xml(bot, summary_text, generated_at):
     generated_at_display = _format_datetime_indonesia(generated_at)
-    participant_names = _participant_display_names_for_mom(bot)
-    participants_display = ", ".join(participant_names) if participant_names else "Tidak tercatat"
     body_elements = [
         _docx_paragraph_xml(bot.session_display_name or "Meeting Summary", style="Title"),
         _docx_paragraph_xml(f"Bot ID: {bot.object_id}", style="Subtitle"),
-        _docx_paragraph_xml(f"Tanggal & jam rapat (perkiraan): {_meeting_schedule_text(bot)}", style="Subtitle"),
-        _docx_paragraph_xml("Peserta:", style="Subtitle"),
-        _docx_paragraph_xml(participants_display, style="Subtitle", align="right"),
         _docx_paragraph_xml(f"Dibuat: {generated_at_display}", style="Subtitle"),
     ]
     body_elements.extend(_build_docx_body_elements(summary_text))
@@ -802,14 +790,6 @@ def _build_pdf_styles():
             leading=12,
             textColor=colors.HexColor("#6b7280"),
             spaceAfter=2,
-        )
-    )
-    styles.add(
-        ParagraphStyle(
-            name="SummaryMetaRight",
-            parent=styles["SummaryMeta"],
-            alignment=TA_RIGHT,
-            spaceAfter=4,
         )
     )
     styles.add(

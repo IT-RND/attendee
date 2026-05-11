@@ -104,6 +104,50 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("3 concurrent guest sessions", response.json()["error"])
 
+    @patch("bots.projects_views.launch_scheduled_bot")
+    def test_guest_past_start_clamps_to_now_when_meeting_still_ongoing(self, mock_launch_scheduled):
+        fixed_now = timezone.now().replace(microsecond=0)
+        join_at = (fixed_now - timedelta(minutes=30)).isoformat()
+        end_at = (fixed_now + timedelta(hours=1)).isoformat()
+
+        with patch("django.utils.timezone.now", return_value=fixed_now):
+            response = self.client.post(
+                self.url,
+                data={
+                    "session_name": "Mid meeting join",
+                    "meeting_url": "https://meet.google.com/mid-meeting-join",
+                    "join_at": join_at,
+                    "end_at": end_at,
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        bot = Bot.objects.get(object_id=response.json()["bot_id"])
+        self.assertEqual(bot.join_at, fixed_now)
+        mock_launch_scheduled.delay.assert_called_once_with(bot.id, bot.join_at.isoformat())
+
+    def test_guest_past_start_when_meeting_ended_is_rejected(self):
+        fixed_now = timezone.now().replace(microsecond=0)
+        join_at = (fixed_now - timedelta(hours=2)).isoformat()
+        end_at = (fixed_now - timedelta(hours=1)).isoformat()
+
+        with patch("django.utils.timezone.now", return_value=fixed_now):
+            response = self.client.post(
+                self.url,
+                data={
+                    "session_name": "Ended meeting",
+                    "meeting_url": "https://meet.google.com/ended-meeting",
+                    "join_at": join_at,
+                    "end_at": end_at,
+                },
+            )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.json()
+        join_at_errors = payload.get("join_at") if isinstance(payload, dict) else None
+        self.assertIsNotNone(join_at_errors, msg=payload)
+        self.assertIn("past", str(join_at_errors).lower())
+
     @patch("bots.projects_views.launch_bot")
     def test_guest_can_create_scheduled_session_without_token(self, mock_launch_bot):
         join_at_datetime = timezone.localtime(timezone.now() + timedelta(hours=1))

@@ -35,6 +35,7 @@ from .google_calendar_oauth import (
 )
 from .launch_bot_utils import launch_bot
 from .meeting_url_utils import meeting_type_from_url
+from .tasks.launch_scheduled_bot_task import launch_scheduled_bot
 from .meeting_summary_guest_utils import (
     assert_guest_url_matches_session_type,
     authenticated_summary_api_urls,
@@ -1796,6 +1797,16 @@ def _parse_guest_session_join_at(raw_join_at):
     return join_at, None
 
 
+def _guest_session_clamp_join_at_to_now_if_mid_meeting(join_at, end_at):
+    """If start is already past but the meeting window has not ended, join immediately (now)."""
+    if join_at is None or end_at is None:
+        return join_at
+    now = timezone.now()
+    if join_at < now < end_at:
+        return now
+    return join_at
+
+
 def _guest_session_event_time_range(local_join_at, metadata):
     scheduled_end_at = (metadata or {}).get("scheduled_end_at")
     if not scheduled_end_at:
@@ -1999,6 +2010,8 @@ class GuestCreateSessionView(View):
             if join_at and end_at and end_at <= join_at:
                 return JsonResponse({"error": "Meeting end time must be after the meeting start time."}, status=400)
 
+            join_at = _guest_session_clamp_join_at_to_now_if_mid_meeting(join_at, end_at)
+
             if request.user.is_authenticated:
                 project = _guest_session_project_for_request(request)
                 concurrent_bots_limit = None
@@ -2058,6 +2071,8 @@ class GuestCreateSessionView(View):
 
             if bot.state == BotStates.JOINING:
                 launch_bot(bot)
+            elif bot.state == BotStates.SCHEDULED and bot.join_at and bot.join_at <= timezone.now():
+                launch_scheduled_bot.delay(bot.id, bot.join_at.isoformat())
 
             return JsonResponse(
                 {

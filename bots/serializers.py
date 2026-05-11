@@ -3,6 +3,7 @@ import json
 import logging
 import os
 from dataclasses import asdict
+from datetime import timedelta
 
 from django.conf import settings
 
@@ -500,7 +501,9 @@ class BotValidationMixin:
         if value is None:
             return value
 
-        if value < timezone.now():
+        # Allow a few seconds in the past so "join now" set in a request handler
+        # still validates when serializer runs moments later.
+        if value < timezone.now() - timedelta(seconds=5):
             raise serializers.ValidationError("join_at cannot be in the past")
 
         if value > timezone.now() + relativedelta(years=3):

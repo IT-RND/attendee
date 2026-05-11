@@ -418,9 +418,10 @@ class SaveMeetingSummaryViewTest(MeetingSummaryFileFieldMixin, TestCase):
         schedule = meeting_summary_utils._meeting_schedule_text(self.bot)
         prompt = meeting_summary_utils._build_summary_prompt(self.bot, "Ping.")
 
-        self.assertIn("## Informasi Rapat", prompt)
+        self.assertIn("## Ringkasan Singkat", prompt)
         self.assertIn("- **Tanggal & waktu:**", prompt)
         self.assertIn("- **Peserta:**", prompt)
+        self.assertNotIn("## Informasi Rapat", prompt)
         self.assertIn(schedule, prompt)
         self.assertIn("Ada, Fariz Tester", prompt)
         self.assertRegex(schedule, r"\d{1,2}\s+\w+\s+\d{4}")
