@@ -12,6 +12,16 @@ urlpatterns = [
         name="guest-create-session",
     ),
     path(
+        "guest/session/<str:bot_object_id>/visibility",
+        projects_views.GuestToggleSessionVisibilityView.as_view(),
+        name="guest-toggle-session-visibility",
+    ),
+    path(
+        "guest/session/<str:bot_object_id>/cancel",
+        projects_views.GuestCancelScheduledSessionView.as_view(),
+        name="guest-cancel-scheduled-session",
+    ),
+    path(
         "calendars/google/callback",
         projects_views.GoogleCalendarOAuthCallbackView.as_view(),
         name="project-google-calendar-oauth-callback",
@@ -62,9 +72,29 @@ urlpatterns = [
         name="manual-complete-bot-session",
     ),
     path(
+        "<str:object_id>/bots/<str:bot_object_id>/delete",
+        projects_views.DeleteProjectSessionView.as_view(),
+        name="delete-project-bot-session",
+    ),
+    path(
+        "<str:object_id>/bots/<str:bot_object_id>/guest-visibility",
+        projects_views.ProjectToggleGuestSessionVisibilityView.as_view(),
+        name="project-bot-guest-visibility",
+    ),
+    path(
+        "<str:object_id>/bots/<str:bot_object_id>/guest-cancel",
+        projects_views.ProjectCancelScheduledGuestSessionView.as_view(),
+        name="project-bot-guest-cancel",
+    ),
+    path(
         "<str:object_id>/app_sessions/<str:bot_object_id>/complete-session",
         projects_views.ManualCompleteBotSessionView.as_view(),
         name="manual-complete-app-session",
+    ),
+    path(
+        "<str:object_id>/app_sessions/<str:bot_object_id>/delete",
+        projects_views.DeleteProjectSessionView.as_view(),
+        name="delete-project-app-session",
     ),
     path(
         "<str:object_id>/bots/<str:bot_object_id>/guest/<str:mom_guest_token>/mom/",

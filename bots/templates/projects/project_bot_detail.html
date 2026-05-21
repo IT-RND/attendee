@@ -251,6 +251,45 @@
                 <span class="text-muted small d-block mt-1">Menutup sesi di Boga tanpa bot keluar dari meeting. Transkrip yang sudah masuk tetap dipakai untuk MoM.</span>
             </form>
             {% endif %}
+            {% if can_manage_guest_session_visibility %}
+                {% if bot.guest_session_hidden %}
+                <form method="post"
+                      action="{% if bot.session_type == SessionTypes.APP_SESSION %}{% url 'projects:project-bot-guest-visibility' project.object_id bot.object_id %}{% else %}{% url 'projects:project-bot-guest-visibility' project.object_id bot.object_id %}{% endif %}"
+                      class="mt-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="hidden" value="false">
+                    <button type="submit" class="btn btn-outline-success btn-sm">Show on guest page</button>
+                    <span class="text-muted small d-block mt-1">This session is hidden from the public guest sessions list.</span>
+                </form>
+                {% else %}
+                <form method="post"
+                      action="{% if bot.session_type == SessionTypes.APP_SESSION %}{% url 'projects:project-bot-guest-visibility' project.object_id bot.object_id %}{% else %}{% url 'projects:project-bot-guest-visibility' project.object_id bot.object_id %}{% endif %}"
+                      class="mt-2"
+                      onsubmit="return confirm('Hide this session from the guest page? Guests will no longer see it in the list.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="hidden" value="true">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">Hide from guest page</button>
+                </form>
+                {% endif %}
+            {% endif %}
+            {% if can_cancel_scheduled_guest_session %}
+            <form method="post"
+                  action="{% url 'projects:project-bot-guest-cancel' project.object_id bot.object_id %}"
+                  class="mt-2"
+                  onsubmit="return confirm('Cancel this scheduled session? The bot will not join the meeting.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-warning btn-sm">Cancel scheduled session</button>
+            </form>
+            {% endif %}
+            {% if can_delete_session %}
+            <form method="post"
+                  action="{% if bot.session_type == SessionTypes.APP_SESSION %}{% url 'projects:delete-project-app-session' project.object_id bot.object_id %}{% else %}{% url 'projects:delete-project-bot-session' project.object_id bot.object_id %}{% endif %}"
+                  class="mt-2"
+                  onsubmit="return confirm('Delete this session permanently? This cannot be undone.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger btn-sm">Delete session</button>
+            </form>
+            {% endif %}
         </div>
     </div>
 

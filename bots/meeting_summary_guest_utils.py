@@ -7,13 +7,23 @@ from accounts.models import UserRole
 from bots.models import Bot, ProjectAccess, SessionTypes
 
 
-def user_can_share_guest_mom_link(user, project) -> bool:
-    """Org admins or users explicitly granted access to the project may copy the guest MoM link."""
-    if not user.is_authenticated:
+def user_can_manage_project_sessions(user, project) -> bool:
+    """Org admins or users with project access may manage sessions (share MoM link, delete, etc.)."""
+    if not user.is_authenticated or not project:
+        return False
+    if user.organization_id != project.organization_id:
         return False
     if getattr(user, "role", None) == UserRole.ADMIN:
         return True
     return ProjectAccess.objects.filter(project=project, user=user).exists()
+
+
+def user_can_share_guest_mom_link(user, project) -> bool:
+    return user_can_manage_project_sessions(user, project)
+
+
+def user_can_delete_project_session(user, project) -> bool:
+    return user_can_manage_project_sessions(user, project)
 
 
 def new_mom_guest_token() -> str:

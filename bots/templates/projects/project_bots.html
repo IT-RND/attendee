@@ -204,7 +204,7 @@
                         <th>Last Event</th>
                         {% if has_scheduled_bots %}<th>Join At</th>{% endif %}
                         <th>Created</th>
-                        {% if can_share_guest_mom_link %}
+                        {% if can_share_guest_mom_link or can_manage_guest_session_visibility %}
                         <th class="text-end" style="width: 1%;">Actions</th>
                         {% endif %}
                     </tr>
@@ -258,24 +258,50 @@
                         </td>
                         {% endif %}
                         <td><small>{{ bot.created_at|date:"M d, Y H:i" }}</small></td>
-                        {% if can_share_guest_mom_link %}
+                        {% if can_share_guest_mom_link or can_manage_guest_session_visibility %}
                         <td class="text-end align-middle" onclick="event.stopPropagation();">
-                            {% if bot.guest_mom_share_url %}
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-outline-secondary" type="button" id="sessionMenu{{ forloop.counter }}" data-bs-toggle="dropdown" aria-expanded="false" onclick="event.stopPropagation();" title="Session menu">
                                     <i class="bi bi-three-dots-vertical"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="sessionMenu{{ forloop.counter }}">
+                                    {% if can_manage_guest_session_visibility %}
+                                        {% if bot.guest_session_hidden %}
+                                        <li>
+                                            <form method="post" action="{% url 'projects:project-bot-guest-visibility' project.object_id bot.object_id %}" class="px-0">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="hidden" value="false">
+                                                <button type="submit" class="dropdown-item">Show on guest page</button>
+                                            </form>
+                                        </li>
+                                        {% else %}
+                                        <li>
+                                            <form method="post" action="{% url 'projects:project-bot-guest-visibility' project.object_id bot.object_id %}" class="px-0" onsubmit="return confirm('Hide this session from the guest page?');">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="hidden" value="true">
+                                                <button type="submit" class="dropdown-item">Hide from guest page</button>
+                                            </form>
+                                        </li>
+                                        {% endif %}
+                                        {% if bot.state == BotStates.SCHEDULED %}
+                                        <li>
+                                            <form method="post" action="{% url 'projects:project-bot-guest-cancel' project.object_id bot.object_id %}" class="px-0" onsubmit="return confirm('Cancel this scheduled session?');">
+                                                {% csrf_token %}
+                                                <button type="submit" class="dropdown-item text-warning">Cancel scheduled session</button>
+                                            </form>
+                                        </li>
+                                        {% endif %}
+                                        {% if bot.guest_mom_share_url %}<li><hr class="dropdown-divider"></li>{% endif %}
+                                    {% endif %}
+                                    {% if bot.guest_mom_share_url %}
                                     <li>
                                         <button type="button" class="dropdown-item" data-guest-mom-url="{{ bot.guest_mom_share_url }}" onclick="event.stopPropagation(); copyGuestMomLinkFromData(this);">
                                             <i class="bi bi-link-45deg me-1"></i> Copy guest MoM link
                                         </button>
                                     </li>
+                                    {% endif %}
                                 </ul>
                             </div>
-                            {% else %}
-                            <span class="text-muted small" title="Run migrations or recreate the session to enable guest links">—</span>
-                            {% endif %}
                         </td>
                         {% endif %}
                     </tr>

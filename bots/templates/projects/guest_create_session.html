@@ -204,6 +204,63 @@
         transition: background-color 0.16s ease, color 0.16s ease;
     }
 
+    .guest-admin-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: center;
+    }
+
+    .guest-admin-btn {
+        border: 0;
+        border-radius: 999px;
+        min-height: 34px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.2;
+        cursor: pointer;
+        transition: background-color 0.16s ease, color 0.16s ease, opacity 0.16s ease;
+    }
+
+    .guest-admin-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+
+    .guest-admin-btn-hide {
+        background: #fff1f0;
+        color: #b42318;
+    }
+
+    .guest-admin-btn-hide:hover,
+    .guest-admin-btn-hide:focus {
+        background: #b42318;
+        color: #fff;
+    }
+
+    .guest-admin-btn-show {
+        background: #ecfdf5;
+        color: #047857;
+    }
+
+    .guest-admin-btn-show:hover,
+    .guest-admin-btn-show:focus {
+        background: #047857;
+        color: #fff;
+    }
+
+    .guest-admin-btn-cancel {
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+    .guest-admin-btn-cancel:hover,
+    .guest-admin-btn-cancel:focus {
+        background: #374151;
+        color: #fff;
+    }
+
     .guest-download-link:hover,
     .guest-download-link:focus {
         color: #fff;
@@ -536,6 +593,9 @@
                     <th scope="col">Status</th>
                     <th scope="col">Session</th>
                     <th scope="col" colspan="2">Download</th>
+                    {% if can_manage_guest_sessions %}
+                    <th scope="col">Admin</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -574,6 +634,40 @@
                         </span>
                         {% endif %}
                     </td>
+                    {% if can_manage_guest_sessions %}
+                    <td>
+                        <div class="guest-admin-actions">
+                            {% if meeting.guest_session_hidden %}
+                            <button type="button"
+                                    class="guest-admin-btn guest-admin-btn-show guest-visibility-btn"
+                                    data-action-url="{% url 'projects:guest-toggle-session-visibility' meeting.bot_object_id %}"
+                                    data-hidden="false"
+                                    data-session-name="{{ meeting.name|escape }}"
+                                    title="Show on guest page">
+                                Show on guest
+                            </button>
+                            {% else %}
+                            <button type="button"
+                                    class="guest-admin-btn guest-admin-btn-hide guest-visibility-btn"
+                                    data-action-url="{% url 'projects:guest-toggle-session-visibility' meeting.bot_object_id %}"
+                                    data-hidden="true"
+                                    data-session-name="{{ meeting.name|escape }}"
+                                    title="Hide from guest page">
+                                Hide from guest
+                            </button>
+                            {% endif %}
+                            {% if meeting.can_cancel %}
+                            <button type="button"
+                                    class="guest-admin-btn guest-admin-btn-cancel guest-cancel-btn"
+                                    data-action-url="{% url 'projects:guest-cancel-scheduled-session' meeting.bot_object_id %}"
+                                    data-session-name="{{ meeting.name|escape }}"
+                                    title="Cancel scheduled session">
+                                Cancel
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% empty %}
                 <tr>
@@ -583,6 +677,9 @@
                     <td><span class="guest-download-disabled">Open</span></td>
                     <td><span class="guest-download-disabled" aria-label="Word belum tersedia" title="Word belum tersedia"><img src="{% static 'images/word_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true"></span></td>
                     <td><span class="guest-download-disabled" aria-label="PDF belum tersedia" title="PDF belum tersedia"><img src="{% static 'images/pdf_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true"></span></td>
+                    {% if can_manage_guest_sessions %}
+                    <td>&nbsp;</td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -930,6 +1027,68 @@
     }
 
     document.getElementById('guestSessionConfirmSubmit').addEventListener('click', submitPendingGuestSession);
+
+    function guestAdminPost(button, confirmMessage) {
+        const actionUrl = button.getAttribute('data-action-url');
+        const sessionName = button.getAttribute('data-session-name') || 'this session';
+        const csrfInput = document.querySelector('#guestSessionForm [name=csrfmiddlewaretoken]');
+        if (!actionUrl || !csrfInput) {
+            return;
+        }
+        if (confirmMessage && !window.confirm(confirmMessage.replace('{name}', sessionName))) {
+            return;
+        }
+
+        const body = new FormData();
+        body.append('csrfmiddlewaretoken', csrfInput.value);
+        const hidden = button.getAttribute('data-hidden');
+        if (hidden !== null && hidden !== '') {
+            body.append('hidden', hidden);
+        }
+
+        button.disabled = true;
+        fetch(actionUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfInput.value,
+            },
+            body: body,
+            credentials: 'same-origin',
+        })
+            .then(function (response) {
+                return response.json().then(function (payload) {
+                    return { ok: response.ok, payload: payload };
+                });
+            })
+            .then(function (result) {
+                if (!result.ok) {
+                    throw result.payload;
+                }
+                window.location.reload();
+            })
+            .catch(function (error) {
+                const errorContainer = document.getElementById('guestSessionError');
+                errorContainer.textContent = (error && error.error) || (error && error.message) || 'Action failed.';
+                errorContainer.classList.remove('d-none');
+                button.disabled = false;
+            });
+    }
+
+    document.querySelectorAll('.guest-visibility-btn').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const hidden = button.getAttribute('data-hidden') === 'true';
+            const msg = hidden
+                ? 'Hide "{name}" from the guest page? Guests will no longer see this session.'
+                : 'Show "{name}" on the guest page again?';
+            guestAdminPost(button, msg);
+        });
+    });
+
+    document.querySelectorAll('.guest-cancel-btn').forEach(function (button) {
+        button.addEventListener('click', function () {
+            guestAdminPost(button, 'Cancel scheduled session "{name}"? The bot will not join this meeting.');
+        });
+    });
 
     document.getElementById('guestSessionForm').addEventListener('submit', function(event) {
         event.preventDefault();

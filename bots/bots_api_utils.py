@@ -24,12 +24,14 @@ from .models import (
     BotMediaRequestStates,
     BotStates,
     CalendarEvent,
+    CreditTransaction,
     Credentials,
     MediaBlob,
     MeetingTypes,
     Project,
     Recording,
     SessionTypes,
+    Utterance,
     TranscriptionProviders,
     TranscriptionSettings,
     TranscriptionTypes,
@@ -506,9 +508,62 @@ def patch_bot(bot: Bot, data: dict) -> tuple[Bot | None, dict | None]:
         return None, {"error": f"An error occurred while patching the bot. Error ID: {error_id}"}
 
 
+PROJECT_SESSION_DELETABLE_STATES = frozenset(
+    {
+        BotStates.SCHEDULED,
+        BotStates.READY,
+        BotStates.STAGED,
+        BotStates.ENDED,
+        BotStates.FATAL_ERROR,
+    }
+)
+
+
+def project_session_has_delete_blockers(bot: Bot) -> bool:
+    """Hard delete is blocked while billing or transcript rows reference this bot."""
+    annotated = getattr(bot, "has_delete_blockers", None)
+    if annotated is not None:
+        return annotated
+    if bot.credit_transactions.exists():
+        return True
+    return Utterance.objects.filter(recording__bot=bot).exists()
+
+
+def project_session_can_be_deleted(bot: Bot) -> bool:
+    return bot.state in PROJECT_SESSION_DELETABLE_STATES and not project_session_has_delete_blockers(bot)
+
+
+def delete_project_session(bot: Bot) -> tuple[bool, dict | None]:
+    """
+    Permanently removes a session from the project (dashboard / guest UI).
+
+    Allowed when the bot has not joined a meeting or has already finished.
+    """
+    if not project_session_can_be_deleted(bot):
+        if project_session_has_delete_blockers(bot):
+            return False, {"error": "This session cannot be deleted."}
+        return False, {
+            "error": (
+                f"Session is in state {BotStates.state_to_api_code(bot.state)} and cannot be deleted. "
+                "Wait until the session ends, or cancel only scheduled sessions."
+            )
+        }
+
+    try:
+        bot.delete()
+        return True, None
+    except ValidationError as e:
+        logger.error("ValidationError deleting project session: %s", e)
+        return False, {"error": e.messages[0]}
+    except Exception as e:
+        error_id = str(uuid.uuid4())
+        logger.error("Error deleting project session (error_id=%s): %s", error_id, e)
+        return False, {"error": f"An error occurred while deleting the session. Error ID: {error_id}"}
+
+
 def delete_bot(bot: Bot) -> tuple[bool, dict | None]:
     """
-    Deletes a scheduled bot.
+    Deletes a scheduled bot (API).
 
     Args:
         bot: The Bot instance to delete
@@ -517,21 +572,10 @@ def delete_bot(bot: Bot) -> tuple[bool, dict | None]:
         tuple: (success, error) where success is True if deletion succeeded,
                and error is None on success or error dict on failure
     """
-    # Check if bot is in scheduled state
     if bot.state != BotStates.SCHEDULED:
         return False, {"error": f"Bot is in state {BotStates.state_to_api_code(bot.state)} but can only be deleted when in scheduled state"}
 
-    try:
-        bot.delete()
-        return True, None
-
-    except ValidationError as e:
-        logger.error(f"ValidationError deleting bot: {e}")
-        return False, {"error": e.messages[0]}
-    except Exception as e:
-        error_id = str(uuid.uuid4())
-        logger.error(f"Error deleting bot (error_id={error_id}): {e}")
-        return False, {"error": f"An error occurred while deleting the bot. Error ID: {error_id}"}
+    return delete_project_session(bot)
 
 
 def validate_webhook_data(url, triggers, project, bot=None):

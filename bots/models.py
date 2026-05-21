@@ -766,6 +766,10 @@ class Bot(models.Model):
         editable=False,
         help_text="Secret segment for guest MoM link (no login).",
     )
+    guest_session_hidden = models.BooleanField(
+        default=False,
+        help_text="When set, this session is hidden from the public guest sessions page.",
+    )
 
     @property
     def session_display_name(self) -> str:

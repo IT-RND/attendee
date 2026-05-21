@@ -2,7 +2,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.test import TestCase
 
 from accounts.models import Organization, User, UserRole
-from bots.meeting_summary_guest_utils import user_can_share_guest_mom_link
+from bots.meeting_summary_guest_utils import user_can_delete_project_session, user_can_share_guest_mom_link
 from bots.models import Project, ProjectAccess
 
 
@@ -45,5 +45,15 @@ class UserCanShareGuestMomLinkTest(TestCase):
     def test_regular_user_without_project_access_may_not_share(self):
         self.assertFalse(user_can_share_guest_mom_link(self.outsider, self.project))
 
+    def test_user_from_other_organization_may_not_manage(self):
+        other_org = Organization.objects.create(name="Other Org")
+        other_project = Project.objects.create(name="Other Proj", organization=other_org)
+        self.assertFalse(user_can_share_guest_mom_link(self.admin, other_project))
+
     def test_anonymous_may_not_share(self):
         self.assertFalse(user_can_share_guest_mom_link(AnonymousUser(), self.project))
+
+    def test_delete_permission_matches_share_permission(self):
+        self.assertTrue(user_can_delete_project_session(self.admin, self.project))
+        self.assertTrue(user_can_delete_project_session(self.member, self.project))
+        self.assertFalse(user_can_delete_project_session(self.outsider, self.project))

@@ -25,7 +25,15 @@ from django.views.generic import ListView
 
 from accounts.models import User, UserRole, user_can_manage_sensitive_integrations
 
-from .bots_api_utils import BotCreationSource, create_bot, create_webhook_subscription, guest_mom_page_absolute_url
+from .bots_api_utils import (
+    BotCreationSource,
+    create_bot,
+    create_webhook_subscription,
+    delete_bot,
+    delete_project_session,
+    guest_mom_page_absolute_url,
+    project_session_can_be_deleted,
+)
 from .google_calendar_oauth import (
     GoogleCalendarOAuthError,
     build_google_calendar_oauth_authorize_url,
@@ -41,6 +49,7 @@ from .meeting_summary_guest_utils import (
     authenticated_summary_api_urls,
     get_bot_for_guest_mom,
     guest_summary_api_urls,
+    user_can_delete_project_session,
     user_can_share_guest_mom_link,
 )
 from .meeting_summary_utils import (
@@ -841,6 +850,11 @@ class ProjectBotsView(LoginRequiredMixin, ProjectUrlContextMixin, ListView):
             bot.guest_mom_share_url = guest_mom_page_absolute_url(bot) if bot.mom_guest_token else None
 
         context["can_share_guest_mom_link"] = user_can_share_guest_mom_link(self.request.user, project)
+        guest_project = _guest_session_project()
+        context["is_guest_session_project"] = bool(guest_project and guest_project.id == project.id)
+        context["can_manage_guest_session_visibility"] = context["is_guest_session_project"] and user_can_delete_project_session(
+            self.request.user, project
+        )
 
         return context
 
@@ -1121,10 +1135,86 @@ class ProjectBotDetailView(LoginRequiredMixin, ProjectUrlContextMixin, View):
                 "public_ip": public_ip,
                 "show_meeting_summary_panel": show_meeting_summary_panel(bot),
                 "can_manual_complete_session": BotEventManager.can_manual_complete_session(bot),
+                "can_delete_session": user_can_delete_project_session(request.user, project)
+                and project_session_can_be_deleted(bot),
+                "can_manage_guest_session_visibility": _user_can_manage_guest_session_visibility(request.user, bot),
+                "can_cancel_scheduled_guest_session": bot.state == BotStates.SCHEDULED
+                and _user_can_manage_guest_session_visibility(request.user, bot),
             }
         )
 
         return render(request, "projects/project_bot_detail.html", context)
+
+
+class ProjectToggleGuestSessionVisibilityView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    def post(self, request, object_id, bot_object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+        if not _user_can_manage_guest_session_visibility(request.user, bot):
+            raise PermissionDenied
+
+        hidden = _toggle_bot_guest_session_visibility(bot, request.POST.get("hidden"))
+        if hidden:
+            messages.success(request, "Session hidden from the guest page.")
+        else:
+            messages.success(request, "Session is visible on the guest page again.")
+
+        return redirect(
+            "bots:project-app-session-detail" if bot.session_type == SessionTypes.APP_SESSION else "bots:project-bot-detail",
+            object_id=object_id,
+            bot_object_id=bot_object_id,
+        )
+
+
+class ProjectCancelScheduledGuestSessionView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    def post(self, request, object_id, bot_object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+        if not _user_can_manage_guest_session_visibility(request.user, bot):
+            raise PermissionDenied
+        if bot.state != BotStates.SCHEDULED:
+            messages.error(request, "Only scheduled sessions can be cancelled.")
+            return redirect(
+                "bots:project-app-session-detail" if bot.session_type == SessionTypes.APP_SESSION else "bots:project-bot-detail",
+                object_id=object_id,
+                bot_object_id=bot_object_id,
+            )
+
+        is_app_session = bot.session_type == SessionTypes.APP_SESSION
+        success, error = delete_bot(bot)
+        if not success:
+            messages.error(request, error.get("error", "Could not cancel session."))
+            return redirect(
+                "bots:project-app-session-detail" if is_app_session else "bots:project-bot-detail",
+                object_id=object_id,
+                bot_object_id=bot_object_id,
+            )
+
+        messages.success(request, "Scheduled session cancelled.")
+        if is_app_session:
+            return redirect("bots:project-app-sessions", object_id=object_id)
+        return redirect("bots:project-bots", object_id=object_id)
+
+
+class DeleteProjectSessionView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    """Org admin or project member removes a session from the project."""
+
+    def post(self, request, object_id, bot_object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        if not user_can_delete_project_session(request.user, project):
+            raise PermissionDenied
+
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+        is_app_session = bot.session_type == SessionTypes.APP_SESSION
+        success, error = delete_project_session(bot)
+        if not success:
+            messages.error(request, error.get("error", "Could not delete session."))
+        else:
+            messages.success(request, "Session deleted.")
+
+        if is_app_session:
+            return redirect("bots:project-app-sessions", object_id=object_id)
+        return redirect("bots:project-bots", object_id=object_id)
 
 
 class GenerateMeetingSummaryView(LoginRequiredMixin, ProjectUrlContextMixin, View):
@@ -1748,6 +1838,16 @@ def _guest_session_project():
     return Project.objects.order_by("created_at").first()
 
 
+def _guest_session_list_project(request):
+    """Project whose sessions are shown on the public guest page."""
+    guest_project = _guest_session_project()
+    if guest_project:
+        return guest_project
+    if request.user.is_authenticated:
+        return Project.accessible_to(request.user).first()
+    return None
+
+
 def _guest_session_project_for_request(request):
     if request.user.is_authenticated:
         project = Project.accessible_to(request.user).first()
@@ -1844,12 +1944,14 @@ def _guest_session_times_overlap(start_a, end_a, start_b, end_b):
     return start_a < effective_end_b and start_b < effective_end_a
 
 
+def _guest_session_public_queryset(queryset):
+    return queryset.filter(guest_session_hidden=False)
+
+
 def _guest_session_overlapping_scheduled_count(project, join_at, end_at):
-    scheduled_bots = (
-        Bot.objects.filter(project=project, join_at__isnull=False)
-        .exclude(state__in=BotStates.post_meeting_states())
-        .order_by("join_at")
-    )
+    scheduled_bots = _guest_session_public_queryset(
+        Bot.objects.filter(project=project, join_at__isnull=False).exclude(state__in=BotStates.post_meeting_states())
+    ).order_by("join_at")
     overlapping_count = 0
 
     for bot in scheduled_bots:
@@ -1872,7 +1974,7 @@ def _parse_guest_calendar_month(raw_month):
     return selected.year, selected.month
 
 
-def _guest_session_calendar(project, raw_month):
+def _guest_session_calendar(project, raw_month, *, include_hidden=False):
     year, month = _parse_guest_calendar_month(raw_month)
     month_start = timezone.make_aware(datetime(year, month, 1), timezone.get_current_timezone())
     next_month_year = year + 1 if month == 12 else year
@@ -1881,11 +1983,12 @@ def _guest_session_calendar(project, raw_month):
 
     scheduled_bots = []
     if project:
-        scheduled_bots = (
-            Bot.objects.filter(project=project, join_at__gte=month_start, join_at__lt=month_end)
-            .exclude(state__in=BotStates.post_meeting_states())
-            .order_by("join_at")
+        scheduled_bots = Bot.objects.filter(project=project, join_at__gte=month_start, join_at__lt=month_end).exclude(
+            state__in=BotStates.post_meeting_states()
         )
+        if not include_hidden:
+            scheduled_bots = _guest_session_public_queryset(scheduled_bots)
+        scheduled_bots = scheduled_bots.order_by("join_at")
 
     events_by_day = {}
     for bot in scheduled_bots:
@@ -1928,16 +2031,15 @@ def _guest_session_calendar(project, raw_month):
     }
 
 
-def _guest_session_meeting_rows(project, raw_page):
+def _guest_session_meeting_rows(project, raw_page, *, include_hidden=False):
     if not project:
         page = Paginator([], GUEST_SESSION_MEETINGS_PAGE_SIZE).get_page(raw_page)
         return [], page
 
-    bots_queryset = (
-        Bot.objects.filter(project=project)
-        .exclude(state=BotStates.DATA_DELETED)
-        .order_by("-created_at")
-    )
+    bots_queryset = Bot.objects.filter(project=project).exclude(state=BotStates.DATA_DELETED)
+    if not include_hidden:
+        bots_queryset = _guest_session_public_queryset(bots_queryset)
+    bots_queryset = bots_queryset.order_by("-created_at")
     page = Paginator(bots_queryset, GUEST_SESSION_MEETINGS_PAGE_SIZE).get_page(raw_page)
 
     rows = []
@@ -1953,34 +2055,79 @@ def _guest_session_meeting_rows(project, raw_page):
                 bot.mom_guest_token,
                 expect_app_session=False,
             )
+        status_label = BotStates(bot.state).label
+        if bot.guest_session_hidden:
+            status_label = f"{status_label} · Hidden"
 
         rows.append(
             {
+                "bot_object_id": bot.object_id,
                 "date": local_meeting_at.strftime("%d %b %Y"),
                 "time": _guest_session_event_time_range(local_meeting_at, metadata),
                 "name": bot.session_display_name,
-                "status": BotStates(bot.state).label,
+                "status": status_label,
                 "session_url": guest_mom_page_absolute_url(bot),
                 "docx_url": summary_urls["docx"] if summary_urls else "",
                 "pdf_url": summary_urls["pdf"] if summary_urls else "",
                 "downloads_available": bool((bot.meeting_summary or "").strip() or bot.meeting_summary_pdf),
+                "guest_session_hidden": bot.guest_session_hidden,
+                "can_cancel": bot.state == BotStates.SCHEDULED,
             }
         )
 
     return rows, page
 
 
+def _bot_belongs_to_guest_session_project(bot: Bot) -> bool:
+    guest_project = _guest_session_project()
+    return bool(guest_project and bot.project_id == guest_project.id)
+
+
+def _user_can_manage_guest_session_visibility(user, bot: Bot) -> bool:
+    return _bot_belongs_to_guest_session_project(bot) and user_can_delete_project_session(user, bot.project)
+
+
+def _toggle_bot_guest_session_visibility(bot: Bot, raw_hidden=None) -> bool:
+    if raw_hidden is not None:
+        bot.guest_session_hidden = str(raw_hidden).lower() in ("true", "1", "on", "yes")
+    else:
+        bot.guest_session_hidden = not bot.guest_session_hidden
+    bot.save(update_fields=["guest_session_hidden", "updated_at"])
+    return bot.guest_session_hidden
+
+
+def _guest_session_bot_for_manager(request, bot_object_id):
+    bot = get_object_or_404(Bot, object_id=bot_object_id)
+    if not _bot_belongs_to_guest_session_project(bot):
+        raise PermissionDenied
+    if bot.project.organization_id != request.user.organization_id:
+        raise PermissionDenied
+    if not user_can_delete_project_session(request.user, bot.project):
+        raise PermissionDenied
+    return bot
+
+
 class GuestCreateSessionView(View):
     template_name = "projects/guest_create_session.html"
 
     def get(self, request):
-        project = _guest_session_project_for_request(request)
+        list_project = _guest_session_list_project(request)
+        can_manage_guest_sessions = bool(
+            list_project
+            and request.user.is_authenticated
+            and user_can_delete_project_session(request.user, list_project)
+            and _guest_session_project()
+        )
         context = {
             "guest_limit": GUEST_SESSION_CONCURRENT_BOTS_LIMIT,
-            "guest_session_project": project,
+            "guest_session_project": list_project,
+            "can_manage_guest_sessions": can_manage_guest_sessions,
         }
-        context.update(_guest_session_calendar(project, request.GET.get("month")))
-        guest_session_meetings, guest_session_meetings_page = _guest_session_meeting_rows(project, request.GET.get("page"))
+        project = list_project
+        context.update(_guest_session_calendar(project, request.GET.get("month"), include_hidden=can_manage_guest_sessions))
+        guest_session_meetings, guest_session_meetings_page = _guest_session_meeting_rows(
+            project, request.GET.get("page"), include_hidden=can_manage_guest_sessions
+        )
         context["guest_session_meetings"] = guest_session_meetings
         context["guest_session_meetings_page"] = guest_session_meetings_page
         return render(
@@ -2087,6 +2234,41 @@ class GuestCreateSessionView(View):
             )
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
+
+
+class GuestToggleSessionVisibilityView(LoginRequiredMixin, View):
+    def post(self, request, bot_object_id):
+        try:
+            bot = _guest_session_bot_for_manager(request, bot_object_id)
+        except PermissionDenied:
+            return JsonResponse({"error": "You do not have permission to manage this session."}, status=403)
+
+        hidden = _toggle_bot_guest_session_visibility(bot, request.POST.get("hidden"))
+
+        return JsonResponse(
+            {
+                "message": "Session hidden from guest page." if hidden else "Session visible on guest page.",
+                "guest_session_hidden": hidden,
+            },
+            status=200,
+        )
+
+
+class GuestCancelScheduledSessionView(LoginRequiredMixin, View):
+    def post(self, request, bot_object_id):
+        try:
+            bot = _guest_session_bot_for_manager(request, bot_object_id)
+        except PermissionDenied:
+            return JsonResponse({"error": "You do not have permission to manage this session."}, status=403)
+
+        if bot.state != BotStates.SCHEDULED:
+            return JsonResponse({"error": "Only scheduled sessions can be cancelled."}, status=400)
+
+        success, error = delete_bot(bot)
+        if not success:
+            return JsonResponse(error, status=400)
+
+        return JsonResponse({"message": "Scheduled session cancelled."}, status=200)
 
 
 class CreateBotView(LoginRequiredMixin, ProjectUrlContextMixin, View):
