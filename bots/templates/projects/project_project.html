@@ -25,6 +25,25 @@
           required
         />
       </div>
+      <div class="mb-4">
+        <label class="form-label d-block">Meeting platforms</label>
+        <p class="form-text text-muted mb-3">Control which meeting platforms can be used when creating bots or guest sessions for this project.</p>
+        <div class="form-check mb-2">
+          <input type="hidden" name="is_zoom_enabled" value="false">
+          <input class="form-check-input" type="checkbox" name="is_zoom_enabled" value="true" id="isZoomEnabled" {% if project.is_zoom_enabled %}checked{% endif %}>
+          <label class="form-check-label" for="isZoomEnabled">Zoom</label>
+        </div>
+        <div class="form-check mb-2">
+          <input type="hidden" name="is_google_meet_enabled" value="false">
+          <input class="form-check-input" type="checkbox" name="is_google_meet_enabled" value="true" id="isGoogleMeetEnabled" {% if project.is_google_meet_enabled %}checked{% endif %}>
+          <label class="form-check-label" for="isGoogleMeetEnabled">Google Meet</label>
+        </div>
+        <div class="form-check">
+          <input type="hidden" name="is_teams_enabled" value="false">
+          <input class="form-check-input" type="checkbox" name="is_teams_enabled" value="true" id="isTeamsEnabled" {% if project.is_teams_enabled %}checked{% endif %}>
+          <label class="form-check-label" for="isTeamsEnabled">Microsoft Teams</label>
+        </div>
+      </div>
       <button type="submit" id="submitButton" class="btn btn-primary">
         Save
       </button>

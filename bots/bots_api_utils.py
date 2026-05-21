@@ -270,6 +270,10 @@ def create_bot(
     # Access the bot through the api key
     meeting_url = serializer.validated_data["meeting_url"]
 
+    error = project.meeting_platform_disabled_error(meeting_url)
+    if error:
+        return None, error
+
     error = validate_meeting_url_and_credentials(meeting_url, project)
     if error:
         return None, error

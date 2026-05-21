@@ -499,8 +499,20 @@
                         <th scope="row"><label for="id_meeting_url">Link Meeting</label></th>
                         <td colspan="3">
                             <input type="url" class="guest-input" id="id_meeting_url" name="meeting_url" required>
-                            <div class="guest-input-note">Zoom support is coming soon. Untuk saat ini gunakan link Google Meet atau Microsoft Teams.</div>
-                            <div id="guestSessionZoomNotice" class="guest-input-warning d-none" role="alert">Link Zoom terdeteksi. Zoom support is coming soon, jadi gunakan Google Meet atau Microsoft Teams dulu.</div>
+                            <div id="guestMeetingPlatformNote" class="guest-input-note">
+                                {% if guest_session_project %}
+                                    {% with labels=guest_session_project.enabled_meeting_platform_labels %}
+                                        {% if labels %}
+                                            Mendukung {{ labels|join:", " }}.
+                                        {% else %}
+                                            Tidak ada platform meeting yang diaktifkan untuk project ini.
+                                        {% endif %}
+                                    {% endwith %}
+                                {% else %}
+                                    Mendukung Zoom, Google Meet, dan Microsoft Teams.
+                                {% endif %}
+                            </div>
+                            <div id="guestSessionPlatformNotice" class="guest-input-warning d-none" role="alert"></div>
                         </td>
                     </tr>
                     <tr>
@@ -621,7 +633,6 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body pt-3">
-                <div id="guestSessionConfirmZoomNotice" class="guest-input-warning d-none" role="alert">Link ini adalah Zoom. Zoom support is coming soon, jadi session belum bisa dibuat dengan link Zoom.</div>
                 <div class="guest-confirm-list">
                     <div class="guest-confirm-item">
                         <span class="guest-confirm-label">Nama Meeting</span>
@@ -650,6 +661,18 @@
 </div>
 
 <script>
+    const GUEST_ENABLED_PLATFORMS = {
+        zoom: {% if guest_session_project %}{{ guest_session_project.is_zoom_enabled|yesno:"true,false" }}{% else %}true{% endif %},
+        google_meet: {% if guest_session_project %}{{ guest_session_project.is_google_meet_enabled|yesno:"true,false" }}{% else %}true{% endif %},
+        teams: {% if guest_session_project %}{{ guest_session_project.is_teams_enabled|yesno:"true,false" }}{% else %}true{% endif %}
+    };
+
+    const GUEST_PLATFORM_LABELS = {
+        zoom: 'Zoom',
+        google_meet: 'Google Meet',
+        teams: 'Microsoft Teams'
+    };
+
     function setupNativePickerInput(input) {
         function openPicker() {
             if (typeof input.showPicker === 'function') {
@@ -704,13 +727,45 @@
         return normalizedUrl.includes('zoom.us') || normalizedUrl.includes('zoom.com');
     }
 
-    function updateZoomNotice(meetingUrl) {
-        const zoomNotice = document.getElementById('guestSessionZoomNotice');
-        if (!zoomNotice) {
+    function getMeetingPlatformKey(meetingUrl) {
+        const normalizedUrl = meetingUrl.toLowerCase();
+        if (normalizedUrl.includes('meet.google.com')) {
+            return 'google_meet';
+        }
+        if (isZoomMeetingUrl(meetingUrl)) {
+            return 'zoom';
+        }
+        if (normalizedUrl.includes('teams.microsoft.com') || normalizedUrl.includes('teams.live.com')) {
+            return 'teams';
+        }
+        return null;
+    }
+
+    function isMeetingPlatformEnabled(meetingUrl) {
+        const platformKey = getMeetingPlatformKey(meetingUrl);
+        if (!platformKey) {
+            return true;
+        }
+        return Boolean(GUEST_ENABLED_PLATFORMS[platformKey]);
+    }
+
+    function getDisabledPlatformMessage(meetingUrl) {
+        const platformKey = getMeetingPlatformKey(meetingUrl);
+        if (!platformKey || GUEST_ENABLED_PLATFORMS[platformKey]) {
+            return '';
+        }
+        return (GUEST_PLATFORM_LABELS[platformKey] || 'Platform meeting ini') + ' tidak diaktifkan untuk project ini.';
+    }
+
+    function updatePlatformNotice(meetingUrl) {
+        const platformNotice = document.getElementById('guestSessionPlatformNotice');
+        if (!platformNotice) {
             return;
         }
 
-        zoomNotice.classList.toggle('d-none', !isZoomMeetingUrl(meetingUrl));
+        const message = getDisabledPlatformMessage(meetingUrl);
+        platformNotice.textContent = message;
+        platformNotice.classList.toggle('d-none', !message);
     }
 
     function detectMeetingPlatform(meetingUrl) {
@@ -762,16 +817,14 @@
         const platformIcon = document.getElementById('guestSessionConfirmPlatformIcon');
         const platformBadge = document.getElementById('guestSessionConfirmPlatform');
         const platformName = document.getElementById('guestSessionConfirmPlatformName');
-        const zoomConfirmNotice = document.getElementById('guestSessionConfirmZoomNotice');
         const confirmSubmitButton = document.getElementById('guestSessionConfirmSubmit');
-        const isZoomLink = isZoomMeetingUrl(details.meetingUrl);
+        const platformDisabled = !isMeetingPlatformEnabled(details.meetingUrl);
 
         platformIcon.className = 'bi ' + platform.icon;
         platformBadge.className = 'guest-confirm-platform ' + platform.badgeClass;
         platformBadge.querySelector('i').className = 'bi ' + platform.icon;
         platformName.textContent = platform.name;
-        zoomConfirmNotice.classList.toggle('d-none', !isZoomLink);
-        confirmSubmitButton.disabled = isZoomLink;
+        confirmSubmitButton.disabled = platformDisabled;
 
         document.getElementById('guestSessionConfirmName').textContent = details.sessionName;
         document.getElementById('guestSessionConfirmDate').textContent = formatMeetingDate(details.joinDate);
@@ -783,13 +836,13 @@
         populateGuestSessionConfirmation(details);
 
         const modalElement = document.getElementById('guestSessionConfirmModal');
-        if (window.bootstrap && window.bootstrap.Modal) {
-            window.bootstrap.Modal.getOrCreateInstance(modalElement).show();
+        if (!isMeetingPlatformEnabled(details.meetingUrl)) {
+            window.alert(getDisabledPlatformMessage(details.meetingUrl));
             return;
         }
 
-        if (isZoomMeetingUrl(details.meetingUrl)) {
-            window.alert('Zoom support is coming soon. Gunakan Google Meet atau Microsoft Teams dulu.');
+        if (window.bootstrap && window.bootstrap.Modal) {
+            window.bootstrap.Modal.getOrCreateInstance(modalElement).show();
             return;
         }
 
@@ -804,7 +857,7 @@
     setupNativePickerInput(document.getElementById('id_join_time'));
     setupNativePickerInput(document.getElementById('id_end_time'));
     document.getElementById('id_meeting_url').addEventListener('input', function(event) {
-        updateZoomNotice(event.currentTarget.value);
+        updatePlatformNotice(event.currentTarget.value);
     });
 
     function submitGuestSession(form, formData, csrfToken) {
@@ -896,6 +949,13 @@
         successContainer.classList.add('d-none');
         errorContainer.textContent = '';
         successContainer.textContent = '';
+
+        const meetingUrl = meetingUrlInput.value.trim();
+        if (!isMeetingPlatformEnabled(meetingUrl)) {
+            errorContainer.textContent = getDisabledPlatformMessage(meetingUrl);
+            errorContainer.classList.remove('d-none');
+            return;
+        }
 
         let confirmJoinTime;
         let confirmEndTime;

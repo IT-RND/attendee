@@ -34,6 +34,10 @@ class Project(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    is_zoom_enabled = models.BooleanField(default=True)
+    is_google_meet_enabled = models.BooleanField(default=True)
+    is_teams_enabled = models.BooleanField(default=True)
+
     @classmethod
     def accessible_to(cls, user):
         if not user.is_active:
@@ -47,6 +51,43 @@ class Project(models.Model):
 
     def concurrent_bots_limit(self):
         return int(os.getenv("CONCURRENT_BOTS_LIMIT", 2500))
+
+    def is_meeting_platform_enabled(self, meeting_type):
+        if meeting_type is None:
+            return True
+        platform_flags = {
+            MeetingTypes.ZOOM: self.is_zoom_enabled,
+            MeetingTypes.GOOGLE_MEET: self.is_google_meet_enabled,
+            MeetingTypes.TEAMS: self.is_teams_enabled,
+        }
+        return platform_flags.get(meeting_type, True)
+
+    def meeting_platform_label(self, meeting_type):
+        labels = {
+            MeetingTypes.ZOOM: "Zoom",
+            MeetingTypes.GOOGLE_MEET: "Google Meet",
+            MeetingTypes.TEAMS: "Microsoft Teams",
+        }
+        return labels.get(meeting_type, "This meeting platform")
+
+    def enabled_meeting_platform_labels(self):
+        labels = []
+        if self.is_zoom_enabled:
+            labels.append("Zoom")
+        if self.is_google_meet_enabled:
+            labels.append("Google Meet")
+        if self.is_teams_enabled:
+            labels.append("Microsoft Teams")
+        return labels
+
+    def meeting_platform_disabled_error(self, meeting_url):
+        from .meeting_url_utils import meeting_type_from_url
+
+        meeting_type = meeting_type_from_url(meeting_url)
+        if meeting_type is None or self.is_meeting_platform_enabled(meeting_type):
+            return None
+        label = self.meeting_platform_label(meeting_type)
+        return {"error": f"{label} meetings are disabled for this project."}
 
     def save(self, *args, **kwargs):
         if not self.object_id:

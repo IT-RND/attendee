@@ -1977,6 +1977,7 @@ class GuestCreateSessionView(View):
         project = _guest_session_project_for_request(request)
         context = {
             "guest_limit": GUEST_SESSION_CONCURRENT_BOTS_LIMIT,
+            "guest_session_project": project,
         }
         context.update(_guest_session_calendar(project, request.GET.get("month")))
         guest_session_meetings, guest_session_meetings_page = _guest_session_meeting_rows(project, request.GET.get("page"))
@@ -2128,6 +2129,13 @@ class CreateProjectView(AdminRequiredMixin, View):
         return redirect("bots:project-dashboard", object_id=project.object_id)
 
 
+def _parse_bool_from_query(query_dict, key, default):
+    values = query_dict.getlist(key)
+    if not values:
+        return default
+    return values[-1].lower() in ("true", "1", "on", "yes")
+
+
 class EditProjectView(AdminRequiredMixin, View):
     def put(self, request, object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
@@ -2142,8 +2150,10 @@ class EditProjectView(AdminRequiredMixin, View):
         if len(name) > 100:
             return HttpResponse("Project name must be less than 100 characters", status=400)
 
-        # Update the project name
         project.name = name
+        project.is_zoom_enabled = _parse_bool_from_query(put_data, "is_zoom_enabled", project.is_zoom_enabled)
+        project.is_google_meet_enabled = _parse_bool_from_query(put_data, "is_google_meet_enabled", project.is_google_meet_enabled)
+        project.is_teams_enabled = _parse_bool_from_query(put_data, "is_teams_enabled", project.is_teams_enabled)
         project.save()
 
         return HttpResponse("ok", status=200)

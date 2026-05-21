@@ -51,7 +51,9 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertContains(response, "Download")
         self.assertContains(response, "Konfirmasi Meeting")
         self.assertContains(response, "Hari & Tanggal")
-        self.assertContains(response, "Zoom support is coming soon")
+        self.assertContains(response, "Mendukung Zoom")
+        self.assertContains(response, "Google Meet")
+        self.assertContains(response, "Microsoft Teams")
         self.assertContains(response, "Calendar visible session")
         self.assertContains(response, "Scheduled")
         self.assertContains(response, "Open")
@@ -172,6 +174,21 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertIn("scheduled_end_at", bot.metadata)
         self.assertNotIn("authenticated_user_id", bot.metadata)
         mock_launch_bot.assert_not_called()
+
+    def test_guest_post_rejects_disabled_zoom_platform(self):
+        self.guest_project.is_zoom_enabled = False
+        self.guest_project.save()
+
+        response = self.client.post(
+            self.url,
+            data={
+                "session_name": "Disabled Zoom session",
+                "meeting_url": "https://zoom.us/j/76402333351",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Zoom meetings are disabled", response.json()["error"])
 
     @patch("bots.projects_views.launch_bot")
     def test_guest_zoom_session_uses_connected_zoom_oauth_connection_for_onbehalf_token(self, mock_launch_bot):
