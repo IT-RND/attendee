@@ -1858,28 +1858,40 @@ def _guest_session_project_for_request(request):
     return _guest_session_project()
 
 
+def _guest_session_connected_zoom_onbehalf_connections(project):
+    return ZoomOAuthConnection.objects.filter(
+        zoom_oauth_app__project=project,
+        state=ZoomOAuthConnectionStates.CONNECTED,
+        is_onbehalf_token_supported=True,
+    )
+
+
+def _guest_session_is_internal_zoom_org(project):
+    """True when every connected on-behalf OAuth user belongs to the same Zoom account."""
+    account_ids = _guest_session_connected_zoom_onbehalf_connections(project).values_list("account_id", flat=True).distinct()
+    non_empty_account_ids = [account_id for account_id in account_ids if account_id]
+    return len(non_empty_account_ids) == 1
+
+
 def _guest_session_zoom_settings(project, meeting_url):
     if meeting_type_from_url(meeting_url) != MeetingTypes.ZOOM:
         return None
 
-    zoom_oauth_connection = (
-        ZoomOAuthConnection.objects.filter(
-            zoom_oauth_app__project=project,
-            state=ZoomOAuthConnectionStates.CONNECTED,
-            is_onbehalf_token_supported=True,
-        )
-        .order_by("-updated_at")
-        .first()
-    )
-    if not zoom_oauth_connection:
+    zoom_oauth_connections = _guest_session_connected_zoom_onbehalf_connections(project)
+    if not zoom_oauth_connections.exists():
         return None
 
-    return {
-        "sdk": "native",
-        "onbehalf_token": {
-            "zoom_oauth_connection_user_id": zoom_oauth_connection.user_id,
-        },
+    zoom_settings = {"sdk": "native"}
+
+    # Internal org meetings do not require an on-behalf token per Zoom SDK policy.
+    if _guest_session_is_internal_zoom_org(project):
+        return zoom_settings
+
+    zoom_oauth_connection = zoom_oauth_connections.order_by("-updated_at").first()
+    zoom_settings["onbehalf_token"] = {
+        "zoom_oauth_connection_user_id": zoom_oauth_connection.user_id,
     }
+    return zoom_settings
 
 
 def _parse_guest_session_join_at(raw_join_at):

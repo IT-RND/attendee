@@ -191,7 +191,7 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertIn("Zoom meetings are disabled", response.json()["error"])
 
     @patch("bots.projects_views.launch_bot")
-    def test_guest_zoom_session_uses_connected_zoom_oauth_connection_for_onbehalf_token(self, mock_launch_bot):
+    def test_guest_zoom_session_skips_onbehalf_token_for_internal_zoom_org(self, mock_launch_bot):
         zoom_oauth_app = ZoomOAuthApp.objects.create(project=self.guest_project, client_id="zoom-client-id")
         zoom_oauth_app.set_credentials({"client_secret": "zoom-client-secret", "webhook_secret": ""})
         zoom_oauth_connection = ZoomOAuthConnection.objects.create(
@@ -213,9 +213,43 @@ class GuestCreateSessionViewTest(TestCase):
 
         self.assertEqual(response.status_code, 201)
         bot = Bot.objects.get(object_id=response.json()["bot_id"])
+        self.assertEqual(bot.settings["zoom_settings"], {"sdk": "native"})
+        mock_launch_bot.assert_called_once_with(bot)
+
+    @patch("bots.projects_views.launch_bot")
+    def test_guest_zoom_session_uses_onbehalf_token_for_multi_account_zoom_org(self, mock_launch_bot):
+        zoom_oauth_app = ZoomOAuthApp.objects.create(project=self.guest_project, client_id="zoom-client-id")
+        zoom_oauth_app.set_credentials({"client_secret": "zoom-client-secret", "webhook_secret": ""})
+        older_connection = ZoomOAuthConnection.objects.create(
+            zoom_oauth_app=zoom_oauth_app,
+            user_id="zoom-user-id-older",
+            account_id="zoom-account-id-a",
+            state=ZoomOAuthConnectionStates.CONNECTED,
+            is_onbehalf_token_supported=True,
+        )
+        newer_connection = ZoomOAuthConnection.objects.create(
+            zoom_oauth_app=zoom_oauth_app,
+            user_id="zoom-user-id-newer",
+            account_id="zoom-account-id-b",
+            state=ZoomOAuthConnectionStates.CONNECTED,
+            is_onbehalf_token_supported=True,
+        )
+        ZoomOAuthConnection.objects.filter(id=older_connection.id).update(updated_at=timezone.now() - timedelta(days=1))
+        ZoomOAuthConnection.objects.filter(id=newer_connection.id).update(updated_at=timezone.now())
+
+        response = self.client.post(
+            self.url,
+            data={
+                "session_name": "Guest Zoom session external",
+                "meeting_url": "https://zoom.us/j/76402333351?pwd=bS7mVcj9DFz2clTYGPa5w86uK2jaeq.1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        bot = Bot.objects.get(object_id=response.json()["bot_id"])
         self.assertEqual(
             bot.settings["zoom_settings"]["onbehalf_token"]["zoom_oauth_connection_user_id"],
-            "zoom-user-id",
+            "zoom-user-id-newer",
         )
         mock_launch_bot.assert_called_once_with(bot)
 
