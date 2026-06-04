@@ -151,6 +151,59 @@
         line-height: 1.35;
     }
 
+    .guest-gmeet-guide {
+        margin-top: 10px;
+        padding: 12px 14px;
+        border: 1px solid #bfdbfe;
+        border-radius: 12px;
+        background: #eff6ff;
+        color: #1e3a5f;
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .guest-gmeet-guide-title {
+        margin: 0 0 6px;
+        font-weight: 700;
+        color: #1d4ed8;
+    }
+
+    .guest-gmeet-guide-text {
+        margin: 0 0 8px;
+    }
+
+    .guest-gmeet-guide-steps {
+        margin: 0 0 10px;
+        padding-left: 1.1rem;
+    }
+
+    .guest-gmeet-guide-steps li {
+        margin-bottom: 4px;
+    }
+
+    .guest-gmeet-guide-image {
+        display: block;
+        width: 100%;
+        max-width: 440px;
+        margin: 0 auto 8px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+    }
+
+    .guest-gmeet-guide-caption {
+        margin: 0;
+        font-size: 12px;
+        color: #475569;
+        text-align: center;
+    }
+
+    .guest-confirm-gmeet-guide {
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid #e5e7eb;
+    }
+
     .guest-meetings-table th,
     .guest-meetings-table td {
         border: 1px solid #e5e7eb;
@@ -570,6 +623,27 @@
                                 {% endif %}
                             </div>
                             <div id="guestSessionPlatformNotice" class="guest-input-warning d-none" role="alert"></div>
+                            <div id="guestGoogleMeetGuide" class="guest-gmeet-guide d-none" role="note" aria-live="polite">
+                                <p class="guest-gmeet-guide-title">Google Meet — host harus menerima Boga Assistant</p>
+                                <p class="guest-gmeet-guide-text">
+                                    Saat meeting dimulai, Google Meet bisa menandai Boga Assistant sebagai bot.
+                                    Host atau co-host wajib mengizinkan bot masuk; jika tidak, sesi akan gagal.
+                                </p>
+                                <ol class="guest-gmeet-guide-steps">
+                                    <li>Buka panel peserta di Google Meet.</li>
+                                    <li>Cari <strong>Boga Assistant</strong> di bagian <strong>With potential risks</strong>.</li>
+                                    <li>Klik menu <strong>⋮</strong> lalu pilih <strong>Admit entry</strong>.</li>
+                                </ol>
+                                <img
+                                    src="{% static 'images/gmeet-bot-guide.png' %}"
+                                    alt="Contoh menu Admit entry untuk Boga Assistant di Google Meet"
+                                    class="guest-gmeet-guide-image"
+                                    width="880"
+                                    height="495"
+                                    loading="lazy"
+                                >
+                                <p class="guest-gmeet-guide-caption">Contoh: pilih <strong>Admit entry</strong> pada permintaan bergabung Boga Assistant.</p>
+                            </div>
                         </td>
                     </tr>
                     <tr>
@@ -712,7 +786,7 @@
 </div>
 
 <div class="modal fade" id="guestSessionConfirmModal" tabindex="-1" aria-labelledby="guestSessionConfirmTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered" id="guestSessionConfirmModalDialog">
         <div class="modal-content border-0 rounded-4 shadow-lg">
             <div class="modal-header border-0 pb-0">
                 <div class="d-flex align-items-center gap-3">
@@ -747,6 +821,20 @@
                         <span class="guest-confirm-label">Link Meeting</span>
                         <span id="guestSessionConfirmLink" class="guest-confirm-value"></span>
                     </div>
+                </div>
+                <div id="guestSessionConfirmGmeetGuide" class="guest-gmeet-guide guest-confirm-gmeet-guide d-none" role="note">
+                    <p class="guest-gmeet-guide-title">Pastikan host meng-admit Boga Assistant</p>
+                    <p class="guest-gmeet-guide-text mb-2">
+                        Di Google Meet, buka menu <strong>⋮</strong> pada Boga Assistant lalu pilih <strong>Admit entry</strong>.
+                    </p>
+                    <img
+                        src="{% static 'images/gmeet-bot-guide.png' %}"
+                        alt="Contoh Admit entry Boga Assistant di Google Meet"
+                        class="guest-gmeet-guide-image"
+                        width="880"
+                        height="495"
+                        loading="lazy"
+                    >
                 </div>
             </div>
             <div class="modal-footer border-0 pt-0">
@@ -854,15 +942,30 @@
         return (GUEST_PLATFORM_LABELS[platformKey] || 'Platform meeting ini') + ' tidak diaktifkan untuk project ini.';
     }
 
+    function isGoogleMeetUrl(meetingUrl) {
+        return getMeetingPlatformKey(meetingUrl) === 'google_meet';
+    }
+
+    function updateGoogleMeetGuide(meetingUrl) {
+        const trimmedUrl = (meetingUrl || '').trim();
+        const showGuide = isGoogleMeetUrl(trimmedUrl) && isMeetingPlatformEnabled(trimmedUrl);
+        const formGuide = document.getElementById('guestGoogleMeetGuide');
+        if (formGuide) {
+            formGuide.classList.toggle('d-none', !showGuide);
+        }
+    }
+
     function updatePlatformNotice(meetingUrl) {
         const platformNotice = document.getElementById('guestSessionPlatformNotice');
         if (!platformNotice) {
+            updateGoogleMeetGuide(meetingUrl);
             return;
         }
 
         const message = getDisabledPlatformMessage(meetingUrl);
         platformNotice.textContent = message;
         platformNotice.classList.toggle('d-none', !message);
+        updateGoogleMeetGuide(meetingUrl);
     }
 
     function detectMeetingPlatform(meetingUrl) {
@@ -927,6 +1030,16 @@
         document.getElementById('guestSessionConfirmDate').textContent = formatMeetingDate(details.joinDate);
         document.getElementById('guestSessionConfirmTime').textContent = details.joinTime + ' s/d ' + details.endTime;
         document.getElementById('guestSessionConfirmLink').textContent = details.meetingUrl;
+
+        const showGmeetGuide = isGoogleMeetUrl(details.meetingUrl);
+        const confirmGmeetGuide = document.getElementById('guestSessionConfirmGmeetGuide');
+        const confirmModalDialog = document.getElementById('guestSessionConfirmModalDialog');
+        if (confirmGmeetGuide) {
+            confirmGmeetGuide.classList.toggle('d-none', !showGmeetGuide);
+        }
+        if (confirmModalDialog) {
+            confirmModalDialog.classList.toggle('modal-lg', showGmeetGuide);
+        }
     }
 
     function showGuestSessionConfirmation(details) {
@@ -995,6 +1108,7 @@
             successContainer.appendChild(link);
             successContainer.classList.remove('d-none');
             form.reset();
+            updatePlatformNotice('');
         })
         .catch(function(error) {
             errorContainer.textContent = error.error || JSON.stringify(error);

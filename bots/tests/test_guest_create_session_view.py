@@ -6,7 +6,17 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import Organization, User
-from bots.models import Bot, BotStates, Project, ZoomOAuthApp, ZoomOAuthConnection, ZoomOAuthConnectionStates
+from bots.models import (
+    Bot,
+    BotEvent,
+    BotEventSubTypes,
+    BotEventTypes,
+    BotStates,
+    Project,
+    ZoomOAuthApp,
+    ZoomOAuthConnection,
+    ZoomOAuthConnectionStates,
+)
 
 
 class GuestCreateSessionViewTest(TestCase):
@@ -55,14 +65,17 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertContains(response, "Google Meet")
         self.assertContains(response, "Microsoft Teams")
         self.assertContains(response, "Calendar visible session")
-        self.assertContains(response, "Scheduled")
+        self.assertContains(response, "Terjadwal")
         self.assertContains(response, "Open")
         self.assertContains(response, f"{local_starts_at.strftime('%H:%M')} - {local_ends_at.strftime('%H:%M')}")
         self.assertNotContains(response, "API token")
+        self.assertContains(response, "gmeet-bot-guide.png")
+        self.assertContains(response, "guestGoogleMeetGuide")
+        self.assertContains(response, "Admit entry")
 
     def test_get_paginates_guest_session_meetings(self):
         starts_at = timezone.now() + timedelta(days=1)
-        for index in range(7):
+        for index in range(21):
             Bot.objects.create(
                 project=self.guest_project,
                 meeting_url=f"https://meet.google.com/paged-session-{index}",
@@ -75,7 +88,7 @@ class GuestCreateSessionViewTest(TestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Paged session 6")
+        self.assertContains(response, "Paged session 20")
         self.assertContains(response, 'href="?page=2"')
         self.assertNotContains(response, "Paged session 0")
 
@@ -84,7 +97,7 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Paged session 0")
         self.assertContains(response, 'href="?page=1"')
-        self.assertNotContains(response, "Paged session 6")
+        self.assertNotContains(response, "Paged session 20")
 
     def test_guest_create_session_enforces_three_concurrent_limit(self):
         for index in range(3):
@@ -378,3 +391,29 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertEqual(bot.metadata["session_name"], "Signed in session")
         self.assertEqual(bot.metadata["authenticated_user_id"], self.regular_user.object_id)
         mock_launch_bot.assert_not_called()
+
+    def test_guest_meeting_table_shows_friendly_fatal_error_reason(self):
+        bot = Bot.objects.create(
+            project=self.guest_project,
+            meeting_url="https://meet.google.com/fatal-guest-test",
+            name="Boga Assistant",
+            state=BotStates.FATAL_ERROR,
+            metadata={"session_name": "Denied session"},
+        )
+        BotEvent.objects.create(
+            bot=bot,
+            old_state=BotStates.JOINING,
+            new_state=BotStates.FATAL_ERROR,
+            event_type=BotEventTypes.COULD_NOT_JOIN,
+            event_sub_type=BotEventSubTypes.COULD_NOT_JOIN_MEETING_REQUEST_TO_JOIN_DENIED,
+        )
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Denied session")
+        self.assertContains(
+            response,
+            "Host tidak menerima Boga Assistant (permintaan bergabung ditolak).",
+        )
+        self.assertNotContains(response, "Fatal Error")

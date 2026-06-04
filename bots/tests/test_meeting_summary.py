@@ -10,7 +10,9 @@ from bots import meeting_summary_utils
 from accounts.models import Organization, User, UserRole
 from bots.models import (
     Bot,
+    BotEvent,
     BotEventManager,
+    BotEventSubTypes,
     BotEventTypes,
     BotStates,
     Credentials,
@@ -562,6 +564,34 @@ class GuestMomPageTest(TestCase):
             settings={"recording_settings": {"format": "mp4"}},
             mom_guest_token="guestmom_integration_token_01",
         )
+
+    def test_guest_mom_page_shows_friendly_fatal_error_reason(self):
+        self.bot.state = BotStates.FATAL_ERROR
+        self.bot.save(update_fields=["state"])
+        BotEvent.objects.create(
+            bot=self.bot,
+            old_state=BotStates.JOINING,
+            new_state=BotStates.FATAL_ERROR,
+            event_type=BotEventTypes.COULD_NOT_JOIN,
+            event_sub_type=BotEventSubTypes.COULD_NOT_JOIN_MEETING_REQUEST_TO_JOIN_DENIED,
+        )
+        url = reverse(
+            "projects:guest-bot-mom-page",
+            kwargs={
+                "object_id": self.project.object_id,
+                "bot_object_id": self.bot.object_id,
+                "mom_guest_token": self.bot.mom_guest_token,
+            },
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Host tidak menerima Boga Assistant (permintaan bergabung ditolak).",
+        )
+        self.assertNotContains(response, "Fatal Error")
 
     def test_guest_mom_page_200_without_login(self):
         url = reverse(

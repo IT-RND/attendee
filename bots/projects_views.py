@@ -44,6 +44,7 @@ from .google_calendar_oauth import (
 from .launch_bot_utils import launch_bot
 from .meeting_url_utils import meeting_type_from_url
 from .tasks.launch_scheduled_bot_task import launch_scheduled_bot
+from .guest_session_status_utils import get_guest_session_status_label
 from .meeting_summary_guest_utils import (
     assert_guest_url_matches_session_type,
     authenticated_summary_api_urls,
@@ -117,7 +118,7 @@ from .zoom_oauth_apps_api_utils import create_or_update_zoom_oauth_app
 logger = logging.getLogger(__name__)
 
 GUEST_SESSION_CONCURRENT_BOTS_LIMIT = 3
-GUEST_SESSION_MEETINGS_PAGE_SIZE = 6
+GUEST_SESSION_MEETINGS_PAGE_SIZE = 20
 GUEST_SESSION_LIMIT_ERROR = (
     "Boga Assistant cannot join right now because there are already 3 concurrent guest sessions. "
     "Sign in to use your account limit or try again when one session ends."
@@ -1397,6 +1398,7 @@ class GuestMomPageView(View):
             "meeting_summary_status_message": meeting_summary_status_message,
             "meeting_summary": bot.meeting_summary or "",
             "show_meeting_summary_panel": show_meeting_summary_panel(bot),
+            "guest_session_status_label": get_guest_session_status_label(bot),
             "can_share_guest_mom_link": False,
             "guest_mom_share_url": None,
         }
@@ -2051,7 +2053,22 @@ def _guest_session_meeting_rows(project, raw_page, *, include_hidden=False):
     bots_queryset = Bot.objects.filter(project=project).exclude(state=BotStates.DATA_DELETED)
     if not include_hidden:
         bots_queryset = _guest_session_public_queryset(bots_queryset)
-    bots_queryset = bots_queryset.order_by("-created_at")
+    failure_event_subquery = (
+        BotEvent.objects.filter(
+            bot=models.OuterRef("pk"),
+            event_type__in=[
+                BotEventTypes.FATAL_ERROR,
+                BotEventTypes.COULD_NOT_JOIN,
+                BotEventTypes.BOT_RECORDING_PERMISSION_DENIED,
+            ],
+            event_sub_type__isnull=False,
+        )
+        .order_by("-created_at")
+        .values("event_sub_type")[:1]
+    )
+    bots_queryset = bots_queryset.annotate(
+        guest_failure_event_sub_type=models.Subquery(failure_event_subquery)
+    ).order_by("-created_at")
     page = Paginator(bots_queryset, GUEST_SESSION_MEETINGS_PAGE_SIZE).get_page(raw_page)
 
     rows = []
@@ -2067,7 +2084,10 @@ def _guest_session_meeting_rows(project, raw_page, *, include_hidden=False):
                 bot.mom_guest_token,
                 expect_app_session=False,
             )
-        status_label = BotStates(bot.state).label
+        status_label = get_guest_session_status_label(
+            bot,
+            failure_event_sub_type=getattr(bot, "guest_failure_event_sub_type", None),
+        )
         if bot.guest_session_hidden:
             status_label = f"{status_label} · Hidden"
 
