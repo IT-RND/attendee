@@ -67,6 +67,11 @@ urlpatterns = [
         name="project-bot-detail",
     ),
     path(
+        "<str:object_id>/bots/<str:bot_object_id>/join-debug",
+        projects_views.ProjectBotJoinDebugPartialView.as_view(),
+        name="project-bot-join-debug",
+    ),
+    path(
         "<str:object_id>/bots/<str:bot_object_id>/complete-session",
         projects_views.ManualCompleteBotSessionView.as_view(),
         name="manual-complete-bot-session",

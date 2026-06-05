@@ -25,7 +25,21 @@ from bots.models import ParticipantEventTypes, RecordingViews
 from bots.utils import half_ceil, scale_i420
 
 from .debug_screen_recorder import DebugScreenRecorder
-from .ui_methods import UiAuthorizedUserNotInMeetingTimeoutExceededException, UiBlockedByCaptchaException, UiCouldNotJoinMeetingWaitingForHostException, UiCouldNotJoinMeetingWaitingRoomTimeoutException, UiIncorrectPasswordException, UiInfinitelyRetryableException, UiLoginAttemptFailedException, UiLoginRequiredException, UiMeetingNotFoundException, UiRequestToJoinDeniedException, UiRetryableException, UiRetryableExpectedException
+from .ui_methods import (
+    UiAuthorizedUserNotInMeetingTimeoutExceededException,
+    UiBlockedByCaptchaException,
+    UiCouldNotJoinMeetingWaitingForHostException,
+    UiCouldNotJoinMeetingWaitingRoomTimeoutException,
+    UiCouldNotLocateElementException,
+    UiIncorrectPasswordException,
+    UiInfinitelyRetryableException,
+    UiLoginAttemptFailedException,
+    UiLoginRequiredException,
+    UiMeetingNotFoundException,
+    UiRequestToJoinDeniedException,
+    UiRetryableException,
+    UiRetryableExpectedException,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +121,8 @@ class WebBotAdapter(BotAdapter):
 
         self.silence_detection_activated = False
         self.joined_at = None
+        self.join_attempt_started_at = None
+        self.last_join_debug_snapshot_at = None
         self.recording_permission_granted_at = None
 
         self.ready_to_send_chat_messages = False
@@ -451,6 +467,39 @@ class WebBotAdapter(BotAdapter):
     def send_login_required_message(self):
         self.send_message_callback({"message": self.Messages.LOGIN_REQUIRED})
 
+    def max_join_attempt_seconds(self) -> int:
+        """Hard cap for Selenium join flow; must exceed waiting_room_timeout."""
+        waiting_room_timeout = self.automatic_leave_configuration.waiting_room_timeout_seconds
+        return max(600, waiting_room_timeout) + 120
+
+    def maybe_save_join_progress_debug_snapshot(self, step: str, *, interval_seconds: int = 90) -> None:
+        now = time.time()
+        if (
+            interval_seconds > 0
+            and self.last_join_debug_snapshot_at is not None
+            and now - self.last_join_debug_snapshot_at < interval_seconds
+        ):
+            return
+        self.save_join_progress_debug_snapshot(step)
+        self.last_join_debug_snapshot_at = now
+
+    def save_join_progress_debug_snapshot(self, step: str) -> None:
+        if not self.driver:
+            return
+        try:
+            screenshot_path, mhtml_file_path, current_time = self.capture_screenshot_and_mhtml_file()
+            self.send_message_callback(
+                {
+                    "message": self.Messages.JOIN_DEBUG_SNAPSHOT,
+                    "step": step,
+                    "current_time": current_time,
+                    "screenshot_path": screenshot_path,
+                    "mhtml_file_path": mhtml_file_path,
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Could not save join progress debug snapshot for step {step}: {e}")
+
     def capture_screenshot_and_mhtml_file(self):
         # Take a screenshot and mhtml file of the page, because it is helpful to have for debugging
         current_time = datetime.datetime.now()
@@ -515,19 +564,20 @@ class WebBotAdapter(BotAdapter):
             logger.warning(f"Error saving mhtml: {e}")
             mhtml_file_path = None
 
-        self.send_message_callback(
-            {
-                "message": self.Messages.UI_ELEMENT_NOT_FOUND,
-                "step": step,
-                "current_time": current_time,
-                "mhtml_file_path": mhtml_file_path,
-                "screenshot_path": screenshot_path,
-                "exception_type": exception.__class__.__name__ if exception else "exception_not_available",
-                "exception_message": exception.__str__() if exception else "exception_message_not_available",
-                "inner_exception_type": inner_exception.__class__.__name__ if inner_exception else "inner_exception_not_available",
-                "inner_exception_message": inner_exception.__str__() if inner_exception else "inner_exception_message_not_available",
-            }
-        )
+        payload = {
+            "message": self.Messages.UI_ELEMENT_NOT_FOUND,
+            "step": step,
+            "current_time": current_time,
+            "mhtml_file_path": mhtml_file_path,
+            "screenshot_path": screenshot_path,
+            "exception_type": exception.__class__.__name__ if exception else "exception_not_available",
+            "exception_message": exception.__str__() if exception else "exception_message_not_available",
+            "inner_exception_type": inner_exception.__class__.__name__ if inner_exception else "inner_exception_not_available",
+            "inner_exception_message": inner_exception.__str__() if inner_exception else "inner_exception_message_not_available",
+        }
+        if os.path.exists(BotAdapter.DEBUG_RECORDING_FILE_PATH):
+            payload["debug_recording_path"] = BotAdapter.DEBUG_RECORDING_FILE_PATH
+        self.send_message_callback(payload)
 
     def subclass_specific_chrome_policies(self):
         return {}
@@ -658,6 +708,7 @@ class WebBotAdapter(BotAdapter):
 
     def repeatedly_attempt_to_join_meeting(self):
         logger.info(f"Trying to join meeting at {self.meeting_url}")
+        self.join_attempt_started_at = time.time()
 
         # Expected exceptions are ones that we expect to happen and are not a big deal, so we only increment num_retries once every three expected exceptions
         num_expected_exceptions = 0
@@ -666,6 +717,10 @@ class WebBotAdapter(BotAdapter):
         attempts_to_join_started_at = time.time()
 
         while num_retries <= max_retries:
+            if self.check_join_attempt_duration_exceeded():
+                self.fail_join_attempt_due_to_timeout("join_attempt_timed_out", raise_exception=False)
+                return
+
             try:
                 self.init_driver()
                 self.attempt_to_join_meeting()
@@ -936,10 +991,38 @@ class WebBotAdapter(BotAdapter):
                 logger.error(f"Domain allow list violation detected: {url}")
                 raise Exception(f"Domain allow list violation detected: {self.domain_for_history_entry_url(url)}")
 
+    def check_join_attempt_duration_exceeded(self) -> bool:
+        if self.joined_at is not None:
+            return False
+        if self.join_attempt_started_at is None:
+            return False
+        return time.time() - self.join_attempt_started_at > self.max_join_attempt_seconds()
+
+    def fail_join_attempt_due_to_timeout(self, step: str, *, raise_exception: bool = True) -> None:
+        logger.warning(
+            "Join attempt exceeded %s seconds at step %s; capturing debug and aborting",
+            self.max_join_attempt_seconds(),
+            step,
+        )
+        self.save_join_progress_debug_snapshot(step)
+        self.stop_debug_screen_recording()
+        exception = UiCouldNotLocateElementException(
+            f"Join attempt timed out after {self.max_join_attempt_seconds()} seconds",
+            step,
+            None,
+        )
+        if raise_exception:
+            raise exception
+        self.send_debug_screenshot_message(step=step, exception=exception, inner_exception=None)
+
     def check_auto_leave_conditions(self) -> None:
         if self.left_meeting:
             return
         if self.cleaned_up:
+            return
+
+        if self.check_join_attempt_duration_exceeded():
+            self.fail_join_attempt_due_to_timeout("join_attempt_timed_out", raise_exception=False)
             return
 
         self.check_domain_allow_list_violation()

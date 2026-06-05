@@ -112,6 +112,34 @@ _DEFAULT_FAILURE_MESSAGE = (
     "Boga Assistant tidak dapat mengikuti meeting. Periksa link meeting dan pastikan host menerima bot."
 )
 
+_GUEST_EVENT_SUBTYPE_SHORT_LABELS = {
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_NOT_STARTED_WAITING_FOR_HOST: "Menunggu host",
+    BotEventSubTypes.FATAL_ERROR_PROCESS_TERMINATED: "Terhenti",
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_ZOOM_AUTHORIZATION_FAILED: "Zoom: otorisasi gagal",
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_ZOOM_MEETING_STATUS_FAILED: "Zoom: gagal masuk",
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_UNPUBLISHED_ZOOM_APP: "Zoom: app terbatas",
+    BotEventSubTypes.FATAL_ERROR_RTMP_CONNECTION_FAILED: "Koneksi streaming gagal",
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_ZOOM_SDK_INTERNAL_ERROR: "Zoom: error internal",
+    BotEventSubTypes.FATAL_ERROR_UI_ELEMENT_NOT_FOUND: "Gagal akses meeting",
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_REQUEST_TO_JOIN_DENIED: "Ditolak host",
+    BotEventSubTypes.FATAL_ERROR_HEARTBEAT_TIMEOUT: "Koneksi terputus",
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_MEETING_NOT_FOUND: "Link tidak valid",
+    BotEventSubTypes.FATAL_ERROR_BOT_NOT_LAUNCHED: "Bot tidak jalan",
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_WAITING_ROOM_TIMEOUT_EXCEEDED: "Timeout ruang tunggu",
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_LOGIN_REQUIRED: "Perlu login",
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_BOT_LOGIN_ATTEMPT_FAILED: "Login gagal",
+    BotEventSubTypes.FATAL_ERROR_OUT_OF_CREDITS: "Kuota habis",
+    BotEventSubTypes.COULD_NOT_JOIN_UNABLE_TO_CONNECT_TO_MEETING: "Tidak terhubung",
+    BotEventSubTypes.FATAL_ERROR_ATTENDEE_INTERNAL_ERROR: "Gangguan sistem",
+    BotEventSubTypes.BOT_RECORDING_PERMISSION_DENIED_HOST_DENIED_PERMISSION: "Rekaman ditolak",
+    BotEventSubTypes.BOT_RECORDING_PERMISSION_DENIED_REQUEST_TIMED_OUT: "Izin rekaman timeout",
+    BotEventSubTypes.BOT_RECORDING_PERMISSION_DENIED_HOST_CLIENT_CANNOT_GRANT_PERMISSION: "Izin tidak bisa diberikan",
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_AUTHORIZED_USER_NOT_IN_MEETING_TIMEOUT_EXCEEDED: "Host belum hadir",
+    BotEventSubTypes.COULD_NOT_JOIN_MEETING_BLOCKED_BY_CAPTCHA: "Diblokir captcha",
+}
+
+_DEFAULT_FAILURE_SHORT_LABEL = "Gagal masuk"
+
 
 def guest_failure_event_sub_type(bot: Bot, *, annotated_sub_type=None):
     if annotated_sub_type is not None:
@@ -142,6 +170,21 @@ def get_guest_session_status_label(bot: Bot, *, failure_event_sub_type=None) -> 
             return reason
         if bot.state == BotStates.FATAL_ERROR:
             return _DEFAULT_FAILURE_MESSAGE
+        return _GUEST_STATE_LABELS.get(bot.state, BotStates(bot.state).label)
+
+    return _GUEST_STATE_LABELS.get(bot.state, BotStates(bot.state).label)
+
+
+def get_guest_session_status_short_label(bot: Bot, *, failure_event_sub_type=None) -> str:
+    """Compact label for tables; use get_guest_session_status_label for full detail."""
+    if bot.state in _GUEST_FAILURE_STATES:
+        sub_type = guest_failure_event_sub_type(bot, annotated_sub_type=failure_event_sub_type)
+        if sub_type is not None:
+            short = _GUEST_EVENT_SUBTYPE_SHORT_LABELS.get(sub_type)
+            if short:
+                return short
+        if bot.state == BotStates.FATAL_ERROR:
+            return _DEFAULT_FAILURE_SHORT_LABEL
         return _GUEST_STATE_LABELS.get(bot.state, BotStates(bot.state).label)
 
     return _GUEST_STATE_LABELS.get(bot.state, BotStates(bot.state).label)

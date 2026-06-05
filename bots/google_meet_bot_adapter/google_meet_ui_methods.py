@@ -140,12 +140,21 @@ class GoogleMeetUIMethods:
             logger.warning("Bot was not let in after waiting period expired. Raising UiRequestToJoinDeniedException")
             raise UiRequestToJoinDeniedException("Bot was not let in after waiting period expired", step)
 
+    def bot_is_in_active_call_ui(self) -> bool:
+        return bool(
+            self.find_element_by_selector(
+                By.CSS_SELECTOR,
+                'button[jsname="CQylAd"][aria-label="Leave call"]',
+            )
+        )
+
     def check_if_waiting_room_timeout_exceeded(self, waiting_room_timeout_started_at, step):
         waiting_room_timeout_exceeded = time.time() - waiting_room_timeout_started_at > self.automatic_leave_configuration.waiting_room_timeout_seconds
         if waiting_room_timeout_exceeded:
-            # If there is more than one participant in the meeting, then the bot was just let in and we should not timeout
-            if len(self.participants_info) > 1:
-                logger.warning("Waiting room timeout exceeded, but there is more than one participant in the meeting. Not aborting join attempt.")
+            if len(self.participants_info) > 1 and self.bot_is_in_active_call_ui():
+                logger.warning(
+                    "Waiting room timeout exceeded, but the bot appears to be in the call UI. Not aborting join attempt."
+                )
                 return
             self.abort_join_attempt()
             logger.warning("Waiting room timeout exceeded. Raising UiCouldNotJoinMeetingWaitingRoomTimeoutException")
@@ -256,10 +265,18 @@ class GoogleMeetUIMethods:
                 raise UiCouldNotLocateElementException("Could not find name input. Unknown error.", "name_input", e)
 
     def click_captions_button(self):
-        num_attempts_to_look_for_captions_button = 600
         logger.info("Waiting for captions button...")
         waiting_room_timeout_started_at = time.time()
-        for attempt_to_look_for_captions_button_index in range(num_attempts_to_look_for_captions_button):
+        join_deadline = time.monotonic() + self.max_join_attempt_seconds()
+        last_debug_snapshot_at = 0.0
+        while time.monotonic() < join_deadline:
+            if time.monotonic() - last_debug_snapshot_at >= 90:
+                self.maybe_save_join_progress_debug_snapshot("click_captions_button", interval_seconds=0)
+                last_debug_snapshot_at = time.monotonic()
+
+            if self.check_join_attempt_duration_exceeded():
+                self.fail_join_attempt_due_to_timeout("click_captions_button")
+
             try:
                 captions_button = WebDriverWait(self.driver, 1).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'button[aria-label="Turn on captions"]')))
                 logger.info("Captions button found")
@@ -271,28 +288,14 @@ class GoogleMeetUIMethods:
             except UiCouldNotClickElementException as e:
                 self.click_this_meeting_is_being_recorded_join_now_button("click_captions_button")
                 self.click_others_may_see_your_meeting_differently_button("click_captions_button")
-                last_check_could_not_click_element = attempt_to_look_for_captions_button_index == num_attempts_to_look_for_captions_button - 1
-                if last_check_could_not_click_element:
-                    logger.warning("Could not click captions button. Raising UiCouldNotClickElementException")
-                    raise e
+                logger.warning("Could not click captions button. Raising UiCouldNotClickElementException")
+                raise e
             except TimeoutException as e:
                 self.look_for_blocked_element("click_captions_button")
                 self.look_for_denied_your_request_element("click_captions_button")
                 self.click_this_meeting_is_being_recorded_join_now_button("click_captions_button")
                 self.click_others_may_see_your_meeting_differently_button("click_captions_button")
                 self.check_if_waiting_room_timeout_exceeded(waiting_room_timeout_started_at, "click_captions_button")
-
-                last_check_timed_out = attempt_to_look_for_captions_button_index == num_attempts_to_look_for_captions_button - 1
-                if last_check_timed_out:
-                    self.look_for_asking_to_be_let_in_element_after_waiting_period_expired("click_captions_button")
-
-                    logger.warning("Could not find captions button. Timed out. Raising UiCouldNotLocateElementException")
-                    raise UiCouldNotLocateElementException(
-                        "Could not find captions button. Timed out.",
-                        "click_captions_button",
-                        e,
-                    )
-
             except Exception as e:
                 logger.warning(f"Could not find captions button. Unknown error {e} of type {type(e)}. Raising UiCouldNotLocateElementException")
                 raise UiCouldNotLocateElementException(
@@ -300,6 +303,15 @@ class GoogleMeetUIMethods:
                     "click_captions_button",
                     e,
                 )
+
+        self.look_for_asking_to_be_let_in_element_after_waiting_period_expired("click_captions_button")
+        self.save_join_progress_debug_snapshot("click_captions_button")
+        logger.warning("Could not find captions button before join deadline. Raising UiCouldNotLocateElementException")
+        raise UiCouldNotLocateElementException(
+            "Could not find captions button. Timed out.",
+            "click_captions_button",
+            None,
+        )
 
     def check_if_meeting_is_found(self):
         meeting_not_found_element = self.find_element_by_selector(By.XPATH, '//*[contains(text(), "Check your meeting code") or contains(text(), "Invalid video call name") or contains(text(), "Your meeting code has expired")]')
@@ -663,12 +675,16 @@ class GoogleMeetUIMethods:
 
     # returns nothing if succeeded, raises an exception if failed
     def attempt_to_join_meeting(self):
+        if self.check_join_attempt_duration_exceeded():
+            self.fail_join_attempt_due_to_timeout("attempt_to_join_meeting")
+
         if self.google_meet_bot_login_is_available and self.google_meet_bot_login_should_be_used:
             self.login_to_google_meet_account_with_retries()
 
         layout_to_select = self.get_layout_to_select()
 
         self.driver.get(self.meeting_url)
+        self.maybe_save_join_progress_debug_snapshot("after_meeting_page_load")
 
         self.driver.execute_cdp_cmd(
             "Browser.grantPermissions",
@@ -697,6 +713,7 @@ class GoogleMeetUIMethods:
         )
         logger.info("Clicking the join button...")
         self.click_element(join_button, "join_button")
+        self.maybe_save_join_progress_debug_snapshot("after_join_button_click")
 
         self.click_captions_button()
 

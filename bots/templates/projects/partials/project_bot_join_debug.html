@@ -1,0 +1,93 @@
+<div id="bot-join-debug" class="card detail-card border-warning mb-3">
+    <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <strong>Debug bergabung ke meeting</strong>
+        <div class="d-flex align-items-center gap-2">
+            {% if bot_join_debug_diagnostics.is_joining %}
+                <span class="text-muted small">Memuat ulang otomatis setiap 30 detik</span>
+            {% endif %}
+            {% if can_manual_complete_session %}
+                <span class="badge text-bg-warning">Sesi macet / masih bergabung</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        {% if bot_join_debug_diagnostics.is_joining %}
+            <ul class="small text-muted mb-3">
+                {% if bot_join_debug_diagnostics.join_minutes is not None %}
+                    <li>Join diminta: <strong>{{ bot_join_debug_diagnostics.join_minutes }} menit</strong> yang lalu</li>
+                {% endif %}
+                {% if bot_join_debug_diagnostics.last_heartbeat_minutes_ago is not None %}
+                    <li>Heartbeat terakhir: <strong>{{ bot_join_debug_diagnostics.last_heartbeat_minutes_ago }} menit</strong> yang lalu
+                        {% if bot_join_debug_diagnostics.last_heartbeat_minutes_ago <= 2 %}
+                            (worker masih hidup)
+                        {% else %}
+                            (worker mungkin mati)
+                        {% endif %}
+                    </li>
+                {% else %}
+                    <li>Belum ada heartbeat — worker mungkin belum jalan</li>
+                {% endif %}
+                {% if bot_join_debug_diagnostics.pod_recreation_count %}
+                    <li>Pod di-restart: <strong>{{ bot_join_debug_diagnostics.pod_recreation_count }}×</strong> (Google memblokir / retry)</li>
+                {% endif %}
+            </ul>
+        {% endif %}
+
+        {% if bot_debug_artifacts %}
+            <p class="text-muted small mb-3">
+                Snapshot layar saat bot mencoba masuk. File juga ada di tab <strong>Timeline</strong>.
+            </p>
+            <div class="row g-3">
+                {% for artifact in bot_debug_artifacts %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="border rounded p-2 h-100">
+                            <p class="small text-muted mb-1">
+                                {{ artifact.event_label }}
+                                · {{ artifact.event_created_at|date:"M d, H:i:s" }}
+                            </p>
+                            {% if artifact.step %}
+                                <p class="small mb-2"><strong>Langkah:</strong> <code>{{ artifact.step }}</code></p>
+                            {% endif %}
+                            {% if artifact.kind == "video" %}
+                                <video class="w-100 rounded" controls style="max-height: 240px;">
+                                    <source src="{{ artifact.url }}" type="video/mp4">
+                                </video>
+                            {% elif artifact.kind == "mhtml" %}
+                                <a href="{{ artifact.url }}" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener">
+                                    Unduh MHTML
+                                </a>
+                            {% else %}
+                                <a href="{{ artifact.url }}" target="_blank" rel="noopener">
+                                    <img src="{{ artifact.url }}" alt="Debug screenshot" class="img-fluid rounded" style="max-height: 240px;">
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted mb-0">
+                {% if bot_join_debug_diagnostics.join_minutes and bot_join_debug_diagnostics.join_minutes >= 20 %}
+                    <strong class="text-danger">Join sudah {{ bot_join_debug_diagnostics.join_minutes }} menit tanpa snapshot.</strong>
+                    Kemungkinan: worker belum pakai versi terbaru, Chrome macet, atau join belum sampai fase snapshot.
+                    Klik <strong>Selesaikan meeting di dashboard</strong>, lalu cek log worker untuk
+                    <code>Waiting for captions button</code> / <code>Clicking the join button</code>.
+                    Pastikan host <strong>Admit entry</strong> di Google Meet.
+                {% else %}
+                    Belum ada file debug. Snapshot otomatis ~90 detik setelah bot membuka halaman Meet
+                    (panel ini refresh otomatis). Host harus <strong>Admit entry</strong> untuk Boga Assistant.
+                {% endif %}
+            </p>
+        {% endif %}
+    </div>
+    {% if bot_join_debug_diagnostics.is_joining %}
+        <div
+            hx-get="{% url 'projects:project-bot-join-debug' project.object_id bot.object_id %}"
+            hx-trigger="every 30s"
+            hx-swap="outerHTML"
+            hx-target="#bot-join-debug"
+            class="d-none"
+            aria-hidden="true"
+        ></div>
+    {% endif %}
+</div>

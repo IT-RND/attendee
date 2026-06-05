@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from bots.guest_session_status_utils import get_guest_session_status_label
+from bots.guest_session_status_utils import get_guest_session_status_label, get_guest_session_status_short_label
 from bots.models import Bot, BotEvent, BotEventSubTypes, BotEventTypes, BotStates, Organization, Project
 
 
@@ -34,9 +34,11 @@ class GuestSessionStatusUtilsTest(TestCase):
             get_guest_session_status_label(self.bot),
             "Host tidak menerima Boga Assistant (permintaan bergabung ditolak).",
         )
+        self.assertEqual(get_guest_session_status_short_label(self.bot), "Ditolak host")
 
     def test_fatal_error_without_event_uses_default_message(self):
         self.assertEqual(
             get_guest_session_status_label(self.bot),
             "Boga Assistant tidak dapat mengikuti meeting. Periksa link meeting dan pastikan host menerima bot.",
         )
+        self.assertEqual(get_guest_session_status_short_label(self.bot), "Gagal masuk")

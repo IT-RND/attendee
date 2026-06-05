@@ -412,8 +412,9 @@ class GuestCreateSessionViewTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Denied session")
+        self.assertContains(response, "Ditolak host")
         self.assertContains(
             response,
-            "Host tidak menerima Boga Assistant (permintaan bergabung ditolak).",
+            'title="Host tidak menerima Boga Assistant (permintaan bergabung ditolak)."',
         )
         self.assertNotContains(response, "Fatal Error")

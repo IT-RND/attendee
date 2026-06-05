@@ -12,7 +12,7 @@
     }
 
     .guest-invitation-panel {
-        max-width: 720px;
+        max-width: min(100%, 960px);
         margin: 0 auto;
         border: 1px solid rgba(15, 23, 42, 0.08);
         border-radius: 22px;
@@ -34,10 +34,23 @@
         color: #4a1511;
     }
 
-    .guest-form-table,
-    .guest-meetings-table {
+    .guest-form-table {
         border-collapse: collapse;
         width: 100%;
+    }
+
+    .guest-meetings-table-wrapper {
+        margin-top: 8px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .guest-meetings-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        width: 100%;
+        min-width: 720px;
+        table-layout: auto;
     }
 
     .guest-form-table {
@@ -181,11 +194,19 @@
         margin-bottom: 4px;
     }
 
+    .guest-gmeet-guide-image-wrap {
+        margin: 0 auto 8px;
+        max-width: 440px;
+        line-height: 0;
+    }
+
     .guest-gmeet-guide-image {
         display: block;
         width: 100%;
-        max-width: 440px;
-        margin: 0 auto 8px;
+        max-width: 100%;
+        height: auto;
+        aspect-ratio: 880 / 495;
+        object-fit: contain;
         border-radius: 10px;
         border: 1px solid #cbd5e1;
         box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
@@ -207,9 +228,10 @@
     .guest-meetings-table th,
     .guest-meetings-table td {
         border: 1px solid #e5e7eb;
-        padding: 12px 14px;
-        height: 46px;
-        font-size: 15px;
+        padding: 10px 12px;
+        min-height: 46px;
+        height: auto;
+        font-size: 14px;
         vertical-align: middle;
     }
 
@@ -218,11 +240,55 @@
         font-weight: 700;
         text-align: center;
         color: #4a1511;
+        white-space: nowrap;
+        font-size: 13px;
+        line-height: 1.2;
     }
 
     .guest-meetings-table td {
         text-align: center;
         background: #fff;
+    }
+
+    .guest-meetings-cell-date {
+        width: 118px;
+        white-space: nowrap;
+    }
+
+    .guest-meetings-cell-name {
+        min-width: 160px;
+        max-width: 280px;
+        text-align: left;
+    }
+
+    .guest-meetings-cell-status {
+        width: 148px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .guest-meetings-cell-session {
+        width: 96px;
+        white-space: nowrap;
+    }
+
+    .guest-meetings-cell-download {
+        width: 88px;
+        white-space: nowrap;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .guest-meetings-cell-admin {
+        min-width: 150px;
+    }
+
+    .guest-download-actions {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: nowrap;
     }
 
     .guest-meetings-table tbody tr {
@@ -237,6 +303,7 @@
         text-align: left;
         font-weight: 600;
         color: #111827;
+        line-height: 1.35;
     }
 
     .guest-download-link {
@@ -350,17 +417,24 @@
     }
 
     .guest-status-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 92px;
+        display: inline-block;
+        max-width: 100%;
+        box-sizing: border-box;
         padding: 6px 10px;
         border-radius: 999px;
         color: #4a1511;
         background: #fff4e5;
-        font-size: 13px;
-        font-weight: 800;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.25;
         white-space: nowrap;
+        text-align: center;
+        cursor: default;
+    }
+
+    .guest-status-badge--has-detail {
+        cursor: help;
+        border-bottom: 1px dashed rgba(74, 21, 17, 0.35);
     }
 
     .guest-session-link {
@@ -368,8 +442,10 @@
         align-items: center;
         justify-content: center;
         gap: 5px;
-        min-width: 92px;
-        padding: 6px 10px;
+        min-width: 0;
+        width: 100%;
+        max-width: 88px;
+        padding: 6px 8px;
         border-radius: 999px;
         color: #1d4ed8;
         background: #eff6ff;
@@ -634,14 +710,14 @@
                                     <li>Cari <strong>Boga Assistant</strong> di bagian <strong>With potential risks</strong>.</li>
                                     <li>Klik menu <strong>⋮</strong> lalu pilih <strong>Admit entry</strong>.</li>
                                 </ol>
-                                <img
-                                    src="{% static 'images/gmeet-bot-guide.png' %}"
-                                    alt="Contoh menu Admit entry untuk Boga Assistant di Google Meet"
-                                    class="guest-gmeet-guide-image"
-                                    width="880"
-                                    height="495"
-                                    loading="lazy"
-                                >
+                                <div class="guest-gmeet-guide-image-wrap">
+                                    <img
+                                        src="{% static 'images/gmeet-bot-guide.png' %}"
+                                        alt="Contoh menu Admit entry untuk Boga Assistant di Google Meet"
+                                        class="guest-gmeet-guide-image"
+                                        loading="lazy"
+                                    >
+                                </div>
                                 <p class="guest-gmeet-guide-caption">Contoh: pilih <strong>Admit entry</strong> pada permintaan bergabung Boga Assistant.</p>
                             </div>
                         </td>
@@ -659,14 +735,25 @@
             <div id="guestSessionSuccess" class="guest-alert guest-alert-success d-none"></div>
         </form>
 
+        <div class="guest-meetings-table-wrapper">
         <table class="guest-meetings-table" aria-label="Boga Assistant meeting downloads">
+            <colgroup>
+                <col class="guest-meetings-cell-date">
+                <col class="guest-meetings-cell-name">
+                <col class="guest-meetings-cell-status">
+                <col class="guest-meetings-cell-session">
+                <col class="guest-meetings-cell-download">
+                {% if can_manage_guest_sessions %}
+                <col class="guest-meetings-cell-admin">
+                {% endif %}
+            </colgroup>
             <thead>
                 <tr>
-                    <th scope="col">Tanggal Meeting</th>
+                    <th scope="col">Tanggal</th>
                     <th scope="col">Nama Meeting</th>
                     <th scope="col">Status</th>
                     <th scope="col">Session</th>
-                    <th scope="col" colspan="2">Download</th>
+                    <th scope="col">Download</th>
                     {% if can_manage_guest_sessions %}
                     <th scope="col">Admin</th>
                     {% endif %}
@@ -675,41 +762,46 @@
             <tbody>
                 {% for meeting in guest_session_meetings %}
                 <tr>
-                    <td>
+                    <td class="guest-meetings-cell-date">
                         {{ meeting.date }}
                         <span class="guest-meeting-time">{{ meeting.time }}</span>
                     </td>
-                    <td class="guest-meeting-name">{{ meeting.name }}</td>
-                    <td><span class="guest-status-badge">{{ meeting.status }}</span></td>
-                    <td>
+                    <td class="guest-meeting-name guest-meetings-cell-name">{{ meeting.name }}</td>
+                    <td class="guest-meetings-cell-status">
+                        <span class="guest-status-badge{% if meeting.status_detail and meeting.status_detail != meeting.status %} guest-status-badge--has-detail{% endif %}"
+                              {% if meeting.status_detail and meeting.status_detail != meeting.status %}title="{{ meeting.status_detail }}"{% endif %}>
+                            {{ meeting.status }}
+                        </span>
+                    </td>
+                    <td class="guest-meetings-cell-session">
                         <a class="guest-session-link" href="{{ meeting.session_url }}" target="_blank" rel="noopener">
                             <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Open
                         </a>
                     </td>
-                    <td>
-                        {% if meeting.downloads_available and meeting.docx_url %}
-                        <a class="guest-download-link" href="{{ meeting.docx_url }}" aria-label="Download Word" title="Download Word">
-                            <img src="{% static 'images/word_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
-                        </a>
-                        {% else %}
-                        <span class="guest-download-disabled" aria-label="Word belum tersedia" title="Word belum tersedia">
-                            <img src="{% static 'images/word_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
-                        </span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if meeting.downloads_available and meeting.pdf_url %}
-                        <a class="guest-download-link" href="{{ meeting.pdf_url }}" aria-label="Download PDF" title="Download PDF">
-                            <img src="{% static 'images/pdf_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
-                        </a>
-                        {% else %}
-                        <span class="guest-download-disabled" aria-label="PDF belum tersedia" title="PDF belum tersedia">
-                            <img src="{% static 'images/pdf_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
-                        </span>
-                        {% endif %}
+                    <td class="guest-meetings-cell-download">
+                        <div class="guest-download-actions">
+                            {% if meeting.downloads_available and meeting.docx_url %}
+                            <a class="guest-download-link" href="{{ meeting.docx_url }}" aria-label="Download Word" title="Download Word">
+                                <img src="{% static 'images/word_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
+                            </a>
+                            {% else %}
+                            <span class="guest-download-disabled" aria-label="Word belum tersedia" title="Word belum tersedia">
+                                <img src="{% static 'images/word_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
+                            </span>
+                            {% endif %}
+                            {% if meeting.downloads_available and meeting.pdf_url %}
+                            <a class="guest-download-link" href="{{ meeting.pdf_url }}" aria-label="Download PDF" title="Download PDF">
+                                <img src="{% static 'images/pdf_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
+                            </a>
+                            {% else %}
+                            <span class="guest-download-disabled" aria-label="PDF belum tersedia" title="PDF belum tersedia">
+                                <img src="{% static 'images/pdf_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true">
+                            </span>
+                            {% endif %}
+                        </div>
                     </td>
                     {% if can_manage_guest_sessions %}
-                    <td>
+                    <td class="guest-meetings-cell-admin">
                         <div class="guest-admin-actions">
                             {% if meeting.guest_session_hidden %}
                             <button type="button"
@@ -745,19 +837,24 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td>&nbsp;</td>
-                    <td class="guest-meeting-name">&nbsp;</td>
-                    <td><span class="guest-status-badge">-</span></td>
-                    <td><span class="guest-download-disabled">Open</span></td>
-                    <td><span class="guest-download-disabled" aria-label="Word belum tersedia" title="Word belum tersedia"><img src="{% static 'images/word_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true"></span></td>
-                    <td><span class="guest-download-disabled" aria-label="PDF belum tersedia" title="PDF belum tersedia"><img src="{% static 'images/pdf_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true"></span></td>
+                    <td class="guest-meetings-cell-date">&nbsp;</td>
+                    <td class="guest-meeting-name guest-meetings-cell-name">&nbsp;</td>
+                    <td class="guest-meetings-cell-status"><span class="guest-status-badge">-</span></td>
+                    <td class="guest-meetings-cell-session"><span class="guest-download-disabled">Open</span></td>
+                    <td class="guest-meetings-cell-download">
+                        <div class="guest-download-actions">
+                            <span class="guest-download-disabled" aria-label="Word belum tersedia" title="Word belum tersedia"><img src="{% static 'images/word_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true"></span>
+                            <span class="guest-download-disabled" aria-label="PDF belum tersedia" title="PDF belum tersedia"><img src="{% static 'images/pdf_icon.png' %}" class="guest-download-icon" alt="" aria-hidden="true"></span>
+                        </div>
+                    </td>
                     {% if can_manage_guest_sessions %}
-                    <td>&nbsp;</td>
+                    <td class="guest-meetings-cell-admin">&nbsp;</td>
                     {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
 
         {% if guest_session_meetings_page.paginator.num_pages > 1 %}
         <nav class="guest-pagination" aria-label="Meeting table pagination">
@@ -827,14 +924,14 @@
                     <p class="guest-gmeet-guide-text mb-2">
                         Di Google Meet, buka menu <strong>⋮</strong> pada Boga Assistant lalu pilih <strong>Admit entry</strong>.
                     </p>
-                    <img
-                        src="{% static 'images/gmeet-bot-guide.png' %}"
-                        alt="Contoh Admit entry Boga Assistant di Google Meet"
-                        class="guest-gmeet-guide-image"
-                        width="880"
-                        height="495"
-                        loading="lazy"
-                    >
+                    <div class="guest-gmeet-guide-image-wrap">
+                        <img
+                            src="{% static 'images/gmeet-bot-guide.png' %}"
+                            alt="Contoh Admit entry Boga Assistant di Google Meet"
+                            class="guest-gmeet-guide-image"
+                            loading="lazy"
+                        >
+                    </div>
                 </div>
             </div>
             <div class="modal-footer border-0 pt-0">

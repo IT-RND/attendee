@@ -44,7 +44,7 @@ from .google_calendar_oauth import (
 from .launch_bot_utils import launch_bot
 from .meeting_url_utils import meeting_type_from_url
 from .tasks.launch_scheduled_bot_task import launch_scheduled_bot
-from .guest_session_status_utils import get_guest_session_status_label
+from .guest_session_status_utils import get_guest_session_status_label, get_guest_session_status_short_label
 from .meeting_summary_guest_utils import (
     assert_guest_url_matches_session_type,
     authenticated_summary_api_urls,
@@ -105,7 +105,11 @@ from .serializers import DEFAULT_BOT_NAME
 from .storage import remote_storage_url
 from .stripe_utils import credit_amount_for_purchase_amount_dollars, process_checkout_session_completed
 from .tasks.deliver_webhook_task import deliver_webhook
-from .utils import generate_recordings_json_for_bot_detail_view
+from .utils import (
+    generate_recordings_json_for_bot_detail_view,
+    get_bot_debug_artifacts_for_dashboard,
+    get_bot_join_debug_diagnostics,
+)
 from .zoom_oauth import (
     ZoomOAuthError,
     build_zoom_oauth_authorize_url,
@@ -1108,6 +1112,12 @@ class ProjectBotDetailView(LoginRequiredMixin, ProjectUrlContextMixin, View):
                     network_stats["total_tx_errors"] += network.get("tx_errors_delta") or 0
 
         meeting_summary_status_message = get_meeting_summary_availability_message(bot)
+        bot_debug_artifacts = get_bot_debug_artifacts_for_dashboard(bot)
+        bot_join_debug_diagnostics = get_bot_join_debug_diagnostics(bot)
+        last_bot_event = bot.last_bot_event()
+        show_bot_join_debug_panel = bool(bot_debug_artifacts) or BotEventManager.can_manual_complete_session(bot)
+        if last_bot_event and last_bot_event.event_type == BotEventTypes.MANUAL_SESSION_COMPLETED:
+            show_bot_join_debug_panel = True
 
         context = self.get_project_context(object_id, project)
         context.update(
@@ -1136,6 +1146,9 @@ class ProjectBotDetailView(LoginRequiredMixin, ProjectUrlContextMixin, View):
                 "public_ip": public_ip,
                 "show_meeting_summary_panel": show_meeting_summary_panel(bot),
                 "can_manual_complete_session": BotEventManager.can_manual_complete_session(bot),
+                "bot_debug_artifacts": bot_debug_artifacts,
+                "bot_join_debug_diagnostics": bot_join_debug_diagnostics,
+                "show_bot_join_debug_panel": show_bot_join_debug_panel,
                 "can_delete_session": user_can_delete_project_session(request.user, project)
                 and project_session_can_be_deleted(bot),
                 "can_manage_guest_session_visibility": _user_can_manage_guest_session_visibility(request.user, bot),
@@ -1145,6 +1158,23 @@ class ProjectBotDetailView(LoginRequiredMixin, ProjectUrlContextMixin, View):
         )
 
         return render(request, "projects/project_bot_detail.html", context)
+
+
+class ProjectBotJoinDebugPartialView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    """HTMX partial: refresh join-debug panel while bot is still joining."""
+
+    def get(self, request, object_id, bot_object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+        bot_debug_artifacts = get_bot_debug_artifacts_for_dashboard(bot)
+        context = {
+            "bot": bot,
+            "bot_debug_artifacts": bot_debug_artifacts,
+            "bot_join_debug_diagnostics": get_bot_join_debug_diagnostics(bot),
+            "can_manual_complete_session": BotEventManager.can_manual_complete_session(bot),
+            "show_bot_join_debug_panel": True,
+        }
+        return render(request, "projects/partials/project_bot_join_debug.html", context)
 
 
 class ProjectToggleGuestSessionVisibilityView(LoginRequiredMixin, ProjectUrlContextMixin, View):
@@ -1275,10 +1305,12 @@ class ManualCompleteBotSessionView(LoginRequiredMixin, ProjectUrlContextMixin, V
             return _detail_redirect()
         messages.success(
             request,
-            "Session marked as completed. You can generate MoM from the transcript when it is available.",
+            "Sesi ditandai selesai. Periksa bagian Debug bergabung ke meeting di bawah untuk video/screenshot bot.",
         )
         bot.refresh_from_db()
-        return _detail_redirect()
+        response = _detail_redirect()
+        response["Location"] += "#bot-join-debug"
+        return response
 
 
 class StreamMeetingSummaryView(LoginRequiredMixin, View):
@@ -2084,12 +2116,12 @@ def _guest_session_meeting_rows(project, raw_page, *, include_hidden=False):
                 bot.mom_guest_token,
                 expect_app_session=False,
             )
-        status_label = get_guest_session_status_label(
-            bot,
-            failure_event_sub_type=getattr(bot, "guest_failure_event_sub_type", None),
-        )
+        failure_sub_type = getattr(bot, "guest_failure_event_sub_type", None)
+        status_detail = get_guest_session_status_label(bot, failure_event_sub_type=failure_sub_type)
+        status_short = get_guest_session_status_short_label(bot, failure_event_sub_type=failure_sub_type)
         if bot.guest_session_hidden:
-            status_label = f"{status_label} · Hidden"
+            status_detail = f"{status_detail} · Hidden"
+            status_short = f"{status_short} · Hidden"
 
         rows.append(
             {
@@ -2097,7 +2129,8 @@ def _guest_session_meeting_rows(project, raw_page, *, include_hidden=False):
                 "date": local_meeting_at.strftime("%d %b %Y"),
                 "time": _guest_session_event_time_range(local_meeting_at, metadata),
                 "name": bot.session_display_name,
-                "status": status_label,
+                "status": status_short,
+                "status_detail": status_detail,
                 "session_url": guest_mom_page_absolute_url(bot),
                 "docx_url": summary_urls["docx"] if summary_urls else "",
                 "pdf_url": summary_urls["pdf"] if summary_urls else "",

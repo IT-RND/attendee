@@ -8,7 +8,7 @@ from django.db import models
 from django.utils import timezone
 from kubernetes import client, config
 
-from bots.models import Bot, BotEventManager, BotEventSubTypes, BotEventTypes
+from bots.models import Bot, BotEventManager, BotEventSubTypes, BotEventTypes, BotStates
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,39 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.terminate_bots_with_heartbeat_timeout()
+        self.terminate_bots_stuck_in_joining()
         self.terminate_bots_that_never_launched()
+
+    def terminate_bots_stuck_in_joining(self):
+        """Fail bots that stayed in JOINING too long (worker alive but join flow stuck)."""
+        logger.info("Terminating bots stuck in JOINING...")
+
+        max_join_minutes = 20
+        cutoff = timezone.now() - timezone.timedelta(minutes=max_join_minutes)
+        joining_bots = Bot.objects.filter(state=BotStates.JOINING)
+
+        for bot in joining_bots:
+            join_event = (
+                bot.bot_events.filter(event_type=BotEventTypes.JOIN_REQUESTED)
+                .order_by("-created_at")
+                .first()
+            )
+            if not join_event or join_event.created_at > cutoff:
+                continue
+            try:
+                logger.info(
+                    "Terminating bot %s stuck in JOINING since %s",
+                    bot.object_id,
+                    join_event.created_at.isoformat(),
+                )
+                self.terminate_bot(
+                    bot,
+                    BotEventSubTypes.FATAL_ERROR_UI_ELEMENT_NOT_FOUND,
+                )
+            except Exception as e:
+                logger.error(f"Failed to terminate stuck joining bot {bot.object_id}: {e}")
+
+        logger.info("Finished terminating bots stuck in JOINING")
 
     def terminate_bots_with_heartbeat_timeout(self):
         logger.info("Terminating bots with heartbeat timeout...")

@@ -248,7 +248,7 @@
                   onsubmit="return confirm('Tandai sesi ini selesai di sistem? Gunakan jika bot macet atau servis tidak merespons.');">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-warning btn-sm">Selesaikan meeting di dashboard</button>
-                <span class="text-muted small d-block mt-1">Menutup sesi di Boga tanpa bot keluar dari meeting. Transkrip yang sudah masuk tetap dipakai untuk MoM.</span>
+                <span class="text-muted small d-block mt-1">Menutup sesi di Boga tanpa bot keluar dari meeting. Transkrip yang sudah masuk tetap dipakai untuk MoM. Setelah submit, periksa <a href="#bot-join-debug">debug bergabung</a> di bawah.</span>
             </form>
             {% endif %}
             {% if can_manage_guest_session_visibility %}
@@ -295,6 +295,10 @@
 
     {% if show_meeting_summary_panel %}
         {% include 'projects/partials/project_bot_summary.html' %}
+    {% endif %}
+
+    {% if show_bot_join_debug_panel %}
+        {% include 'projects/partials/project_bot_join_debug.html' with project=project %}
     {% endif %}
 
     <ul class="nav nav-tabs mb-3" role="tablist">
@@ -795,4 +799,11 @@
 
     </div>
 </div>
+{% if show_bot_join_debug_panel %}
+<script>
+    if (window.location.hash === "#bot-join-debug") {
+        document.getElementById("bot-join-debug")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+</script>
+{% endif %}
 {% endblock %}

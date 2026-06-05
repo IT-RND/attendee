@@ -577,6 +577,73 @@ def generate_speaker_timeline_for_bot_detail_view(recording):
     return result
 
 
+def get_bot_join_debug_diagnostics(bot):
+    """Operational context for a bot stuck in JOINING (dashboard debug panel)."""
+    from django.utils import timezone
+
+    from bots.models import BotEventTypes, BotStates
+
+    join_event = (
+        bot.bot_events.filter(event_type=BotEventTypes.JOIN_REQUESTED)
+        .order_by("-created_at")
+        .first()
+    )
+    join_minutes = None
+    pod_recreation_count = 0
+    if join_event:
+        join_minutes = int((timezone.now() - join_event.created_at).total_seconds() // 60)
+        pod_recreation_count = len((join_event.metadata or {}).get("pod_recreations") or [])
+
+    last_heartbeat_minutes_ago = None
+    if bot.last_heartbeat_timestamp:
+        last_heartbeat_minutes_ago = int(
+            (timezone.now().timestamp() - bot.last_heartbeat_timestamp) // 60
+        )
+
+    return {
+        "join_minutes": join_minutes,
+        "last_heartbeat_minutes_ago": last_heartbeat_minutes_ago,
+        "pod_recreation_count": pod_recreation_count,
+        "is_joining": bot.state == BotStates.JOINING,
+    }
+
+
+def get_bot_debug_artifacts_for_dashboard(bot):
+    """Debug screenshots/videos/MHTML from all bot events, newest first."""
+    from .models import BotDebugScreenshot
+
+    artifacts = []
+    for shot in (
+        BotDebugScreenshot.objects.filter(bot_event__bot=bot)
+        .select_related("bot_event")
+        .order_by("-created_at")
+    ):
+        name = (shot.file.name or "").lower()
+        if name.endswith(".mp4"):
+            kind = "video"
+        elif name.endswith(".mhtml"):
+            kind = "mhtml"
+        else:
+            kind = "image"
+
+        event = shot.bot_event
+        metadata = event.metadata or {}
+        artifacts.append(
+            {
+                "object_id": shot.object_id,
+                "url": shot.url,
+                "kind": kind,
+                "created_at": shot.created_at,
+                "event_label": event.get_event_sub_type_display()
+                if event.event_sub_type
+                else event.get_event_type_display(),
+                "event_created_at": event.created_at,
+                "step": metadata.get("step"),
+            }
+        )
+    return artifacts
+
+
 def generate_recordings_json_for_bot_detail_view(bot):
     # Process recordings and utterances
     recordings_data = []

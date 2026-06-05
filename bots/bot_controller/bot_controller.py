@@ -1261,6 +1261,8 @@ class BotController:
             # Check if auto-leave conditions are met
             self.adapter.check_auto_leave_conditions()
 
+            self.check_stuck_in_joining_state()
+
             # Process audio output
             self.audio_output_manager.monitor_currently_playing_audio_media_request()
 
@@ -1636,9 +1638,43 @@ class BotController:
                 logger.error(f"Error processing message from websocket: {e}")
             self.websocket_audio_error_ticker += 1
 
+    def join_requested_bot_event(self):
+        return (
+            self.bot_in_db.bot_events.filter(event_type=BotEventTypes.JOIN_REQUESTED)
+            .order_by("-created_at")
+            .first()
+        )
+
+    def check_stuck_in_joining_state(self):
+        if self.bot_in_db.state != BotStates.JOINING:
+            return
+        if not self.adapter:
+            return
+
+        join_started_at = getattr(self.adapter, "join_attempt_started_at", None)
+        if join_started_at is None:
+            join_event = self.join_requested_bot_event()
+            if join_event:
+                join_started_at = join_event.created_at.timestamp()
+            else:
+                return
+
+        max_seconds = self.adapter.max_join_attempt_seconds() if hasattr(self.adapter, "max_join_attempt_seconds") else 1020
+        if time.time() - join_started_at <= max_seconds:
+            return
+
+        logger.warning(
+            "Bot %s stuck in JOINING for more than %s seconds; forcing join failure with debug capture",
+            self.bot_in_db.object_id,
+            max_seconds,
+        )
+        if hasattr(self.adapter, "fail_join_attempt_due_to_timeout"):
+            self.adapter.fail_join_attempt_due_to_timeout("join_attempt_timed_out", raise_exception=False)
+
     def save_debug_artifacts(self, message, new_bot_event):
         screenshot_available = message.get("screenshot_path") is not None
         mhtml_file_available = message.get("mhtml_file_path") is not None
+        debug_recording_path = message.get("debug_recording_path")
 
         if screenshot_available:
             if not os.path.exists(message.get("screenshot_path")):
@@ -1670,6 +1706,15 @@ class BotController:
                 mhtml_debug_screenshot.file.save(
                     f"debug_screenshot_{mhtml_debug_screenshot.object_id}.mhtml",
                     ContentFile(mhtml_content),
+                    save=True,
+                )
+
+        if debug_recording_path and os.path.exists(debug_recording_path):
+            debug_recording = BotDebugScreenshot.objects.create(bot_event=new_bot_event)
+            with open(debug_recording_path, "rb") as f:
+                debug_recording.file.save(
+                    f"debug_screen_recording_{debug_recording.object_id}.mp4",
+                    ContentFile(f.read()),
                     save=True,
                 )
 
@@ -1760,9 +1805,18 @@ class BotController:
         if message.get("message") == BotAdapter.Messages.BLOCKED_BY_PLATFORM_REPEATEDLY:
             from bots.tasks.restart_bot_pod_task import restart_bot_pod
 
-            bot_start_time = self.bot_in_db.join_at or self.bot_in_db.created_at
-            if bot_start_time < timezone.now() - timedelta(minutes=15):
-                logger.info("Received message that we were blocked by platform repeatedly but bot was created more than 15 minutes ago, so not recreating pod")
+            join_event = self.join_requested_bot_event()
+            join_event_age_exceeded = (
+                join_event is not None
+                and join_event.created_at < timezone.now() - timedelta(minutes=15)
+            )
+            pod_recreations = (join_event.metadata or {}).get("pod_recreations") if join_event else []
+            too_many_pod_recreations = len(pod_recreations or []) >= 5
+            if join_event_age_exceeded or too_many_pod_recreations:
+                logger.info(
+                    "Blocked by platform repeatedly but join attempt is too old (%s pod restarts); failing bot",
+                    len(pod_recreations or []),
+                )
 
                 new_bot_event = BotEventManager.create_event(
                     bot=self.bot_in_db,
@@ -1782,6 +1836,14 @@ class BotController:
             if self.main_loop and self.main_loop.is_running():
                 logger.info("Quitting main loop")
                 self.main_loop.quit()
+            return
+
+        if message.get("message") == BotAdapter.Messages.JOIN_DEBUG_SNAPSHOT:
+            join_event = self.join_requested_bot_event()
+            if join_event:
+                self.save_debug_artifacts(message, join_event)
+            else:
+                logger.warning("Received join debug snapshot but no JOIN_REQUESTED event exists")
             return
 
         if message.get("message") == BotAdapter.Messages.UI_ELEMENT_NOT_FOUND:
