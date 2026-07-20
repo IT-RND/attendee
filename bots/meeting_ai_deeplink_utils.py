@@ -33,6 +33,16 @@ def _derive_dotnet_rfc2898_key_iv() -> Optional[tuple[bytes, bytes]]:
     return material[:32], material[32:48]
 
 
+def looks_like_encrypted_ciphertext(value: str) -> bool:
+    encrypted_text = str(value or "").strip()
+    if not encrypted_text:
+        return False
+    if re.fullmatch(r"[0-9a-fA-F]+", encrypted_text) and len(encrypted_text) % 2 == 0 and len(encrypted_text) >= 32:
+        return True
+    normalized = encrypted_text.replace("-", "+").replace("_", "/")
+    return bool(re.fullmatch(r"[A-Za-z0-9+/=]+", normalized) and len(normalized) >= 24)
+
+
 def _decode_user_ciphertext(encrypted_user: str) -> Optional[bytes]:
     encrypted_text = str(encrypted_user or "").strip()
     if not encrypted_text:
@@ -48,6 +58,17 @@ def _decode_user_ciphertext(encrypted_user: str) -> Optional[bytes]:
     return None
 
 
+def _pkcs7_unpad(data: bytes, block_size: int = 16) -> bytes:
+    if not data or len(data) % block_size != 0:
+        raise ValueError("Invalid padded data")
+    pad_len = data[-1]
+    if pad_len < 1 or pad_len > block_size:
+        raise ValueError("Invalid padding")
+    if data[-pad_len:] != bytes([pad_len]) * pad_len:
+        raise ValueError("Invalid padding")
+    return data[:-pad_len]
+
+
 def _try_decrypt_hex_payload(encrypted_user: str) -> str:
     payload = _decode_user_ciphertext(encrypted_user)
     if not payload:
@@ -60,6 +81,7 @@ def _try_decrypt_hex_payload(encrypted_user: str) -> str:
         cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
         decryptor = cipher.decryptor()
         decrypted = decryptor.update(payload) + decryptor.finalize()
+        decrypted = _pkcs7_unpad(decrypted)
         return decrypted.decode("utf-8").strip()
     except (ValueError, UnicodeDecodeError):
         return ""
@@ -122,6 +144,18 @@ def _parse_deeplink_credentials(raw: str) -> Optional[tuple[str, str]]:
     return None
 
 
+def _resolve_decrypted_credentials(decrypted: str) -> tuple[str, str]:
+    parsed = _parse_deeplink_credentials(decrypted)
+    if not parsed:
+        raise DeepLinkCredentialError("Could not decrypt or parse user credentials from URL")
+
+    user_id, password = parsed
+    resolved_password = (password or "").strip() or DEEPLINK_EMPTY_PASSWORD_FALLBACK
+    if not user_id:
+        raise DeepLinkCredentialError("Decrypted user id is invalid")
+    return user_id, resolved_password
+
+
 def resolve_deeplink_credentials(encrypted_user: str, key: str) -> tuple[str, str]:
     normalized_key = str(key or "").strip()
     if not normalized_key:
@@ -132,12 +166,19 @@ def resolve_deeplink_credentials(encrypted_user: str, key: str) -> tuple[str, st
         raise DeepLinkCredentialError("user is required")
 
     decrypted = _try_decrypt_hex_payload(encrypted_user)
-    parsed = _parse_deeplink_credentials(decrypted)
-    if not parsed:
-        raise DeepLinkCredentialError("Could not decrypt or parse user credentials from URL")
+    return _resolve_decrypted_credentials(decrypted)
 
-    user_id, password = parsed
-    resolved_password = (password or "").strip() or DEEPLINK_EMPTY_PASSWORD_FALLBACK
-    if not user_id:
-        raise DeepLinkCredentialError("Decrypted user id is invalid")
-    return user_id, resolved_password
+
+def resolve_encrypted_userid_credentials(encrypted_userid: str) -> tuple[str, str]:
+    """
+    Decrypt a guest-session userid query parameter using DEEPLINK_SECRET_KEY + DEEPLINK_SALT.
+
+    The decrypted payload is expected to contain ``userid;password`` for MeetingAI auth.
+    """
+    if not str(encrypted_userid or "").strip():
+        raise DeepLinkCredentialError("userid is required")
+
+    decrypted = _try_decrypt_hex_payload(encrypted_userid)
+    if not decrypted:
+        raise DeepLinkCredentialError("Could not decrypt user credentials from URL")
+    return _resolve_decrypted_credentials(decrypted)

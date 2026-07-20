@@ -1164,12 +1164,16 @@
     function appendGuestSessionUrlCredentials(formData) {
         const user = guestSessionUrlParams.get('user');
         const key = guestSessionUrlParams.get('key');
+        const userid = guestSessionUrlParams.get('userid');
         const trxid = guestSessionUrlParams.get('trxid');
         if (user) {
             formData.set('user', user);
         }
         if (key) {
             formData.set('key', key);
+        }
+        if (userid && !formData.get('password') && !formData.get('meeting_ai_password')) {
+            formData.set('userid', userid);
         }
         if (trxid && !formData.get('trxid') && !formData.get('transaction_id')) {
             formData.set('trxid', trxid);
