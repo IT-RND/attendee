@@ -9,8 +9,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 DEEPLINK_SHARED_KEY = os.getenv("DEEPLINK_SHARED_KEY", "efkkFVKFidDZQ9CAPOsxh5Gy")
-DEEPLINK_SECRET_KEY = os.getenv("DEEPLINK_SECRET_KEY", DEEPLINK_SHARED_KEY)
-DEEPLINK_SALT = os.getenv("DEEPLINK_SALT", "")
+DEEPLINK_SECRET_KEY = os.getenv("DEEPLINK_SECRET_KEY", "0H3cfeah7Lss18xIokNV6jKQ")
+DEEPLINK_SALT = os.getenv("DEEPLINK_SALT", "plD4VMd3QxVBQwhaHB7BkkoE")
 DEEPLINK_PBKDF2_ITERATIONS = int(os.getenv("DEEPLINK_PBKDF2_ITERATIONS", "10000"))
 DEEPLINK_EMPTY_PASSWORD_FALLBACK = os.getenv("DEEPLINK_EMPTY_PASSWORD_FALLBACK", "Jakarta2022")
 
@@ -31,6 +31,18 @@ def _derive_dotnet_rfc2898_key_iv() -> Optional[tuple[bytes, bytes]]:
     iterations = DEEPLINK_PBKDF2_ITERATIONS if DEEPLINK_PBKDF2_ITERATIONS > 0 else 10000
     material = hashlib.pbkdf2_hmac("sha1", password.encode("utf-8"), salt, iterations, dklen=48)
     return material[:32], material[32:48]
+
+
+def _derive_erp_salt_key() -> Optional[bytes]:
+    """
+    Match coresolution NotulenMeetingBot SaltEncryption: PBKDF2 derives AES key only.
+    """
+    password = DEEPLINK_SECRET_KEY or ""
+    salt = (DEEPLINK_SALT or "").encode("utf-8")
+    if not password or not salt:
+        return None
+    iterations = DEEPLINK_PBKDF2_ITERATIONS if DEEPLINK_PBKDF2_ITERATIONS > 0 else 10000
+    return hashlib.pbkdf2_hmac("sha1", password.encode("utf-8"), salt, iterations, dklen=32)
 
 
 def looks_like_encrypted_ciphertext(value: str) -> bool:
@@ -81,6 +93,30 @@ def _try_decrypt_hex_payload(encrypted_user: str) -> str:
         cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
         decryptor = cipher.decryptor()
         decrypted = decryptor.update(payload) + decryptor.finalize()
+        decrypted = _pkcs7_unpad(decrypted)
+        return decrypted.decode("utf-8").strip()
+    except (ValueError, UnicodeDecodeError):
+        return ""
+
+
+def _try_decrypt_erp_salt_payload(encrypted_user: str) -> str:
+    """
+    Decrypt ERP iframe userid values from NotulenMeetingBot SaltEncryption.
+
+    Payload layout: 16-byte random IV + AES-CBC ciphertext; key from PBKDF2 only.
+    """
+    payload = _decode_user_ciphertext(encrypted_user)
+    if not payload or len(payload) <= 16:
+        return ""
+    key = _derive_erp_salt_key()
+    if not key:
+        return ""
+    iv = payload[:16]
+    cipher_bytes = payload[16:]
+    try:
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        decryptor = cipher.decryptor()
+        decrypted = decryptor.update(cipher_bytes) + decryptor.finalize()
         decrypted = _pkcs7_unpad(decrypted)
         return decrypted.decode("utf-8").strip()
     except (ValueError, UnicodeDecodeError):
@@ -178,7 +214,7 @@ def resolve_encrypted_userid_credentials(encrypted_userid: str) -> tuple[str, st
     if not str(encrypted_userid or "").strip():
         raise DeepLinkCredentialError("userid is required")
 
-    decrypted = _try_decrypt_hex_payload(encrypted_userid)
+    decrypted = _try_decrypt_erp_salt_payload(encrypted_userid)
     if not decrypted:
         raise DeepLinkCredentialError("Could not decrypt user credentials from URL")
     return _resolve_decrypted_credentials(decrypted)

@@ -1198,7 +1198,7 @@
         submitButton.textContent = 'Submitting...';
         confirmSubmitButton.textContent = 'Submitting...';
 
-        fetch(form.action, {
+        fetch(form.action + window.location.search, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': csrfToken,
@@ -1223,6 +1223,14 @@
 
             successContainer.textContent = payload.message + ' ';
             successContainer.appendChild(link);
+            if (payload.meeting_ai_warning) {
+                successContainer.appendChild(document.createElement('br'));
+                const warning = document.createElement('span');
+                warning.textContent = payload.meeting_ai_warning;
+                warning.style.color = '#9a3412';
+                warning.style.fontWeight = '700';
+                successContainer.appendChild(warning);
+            }
             successContainer.classList.remove('d-none');
             form.reset();
             updatePlatformNotice('');

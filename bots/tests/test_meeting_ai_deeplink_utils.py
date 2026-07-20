@@ -14,6 +14,19 @@ from bots.meeting_ai_deeplink_utils import (
 )
 
 
+def _encrypt_erp_salt_style(plaintext: str, *, secret_key: str, salt: str, iv: bytes, iterations: int = 10000) -> str:
+    key = hashlib.pbkdf2_hmac("sha1", secret_key.encode("utf-8"), salt.encode("utf-8"), iterations, dklen=32)
+
+    data = plaintext.encode("utf-8")
+    pad_len = 16 - (len(data) % 16)
+    data += bytes([pad_len]) * pad_len
+
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    encrypted = encryptor.update(data) + encryptor.finalize()
+    return (iv + encrypted).hex().upper()
+
+
 def _encrypt_dotnet_style(plaintext: str, *, secret_key: str, salt: str, iterations: int = 10000) -> str:
     material = hashlib.pbkdf2_hmac("sha1", secret_key.encode("utf-8"), salt.encode("utf-8"), iterations, dklen=48)
     key, iv = material[:32], material[32:48]
@@ -40,10 +53,11 @@ class ResolveEncryptedUseridCredentialsTest(TestCase):
             "DEEPLINK_SECRET_KEY": "test-secret-key",
             "DEEPLINK_SALT": "test-salt",
         }):
-            encrypted_userid = _encrypt_dotnet_style(
-                "alice.example;secret-pass",
+            encrypted_userid = _encrypt_erp_salt_style(
+                "\ufeffalice.example;secret-pass",
                 secret_key="test-secret-key",
                 salt="test-salt",
+                iv=bytes.fromhex("00112233445566778899aabbccddeeff"),
             )
 
             userid, password = resolve_encrypted_userid_credentials(encrypted_userid)
@@ -57,10 +71,11 @@ class ResolveEncryptedUseridCredentialsTest(TestCase):
             "DEEPLINK_SECRET_KEY": "test-secret-key",
             "DEEPLINK_SALT": "test-salt",
         }):
-            encrypted_userid = _encrypt_dotnet_style(
-                "alice.example;",
+            encrypted_userid = _encrypt_erp_salt_style(
+                "\ufeffalice.example;",
                 secret_key="test-secret-key",
                 salt="test-salt",
+                iv=bytes.fromhex("00112233445566778899aabbccddeeff"),
             )
 
             userid, password = resolve_encrypted_userid_credentials(encrypted_userid)
@@ -69,9 +84,12 @@ class ResolveEncryptedUseridCredentialsTest(TestCase):
         self.assertEqual(password, "Jakarta2022")
 
     def test_raises_when_salt_not_configured(self):
-        with patch("bots.meeting_ai_deeplink_utils.DEEPLINK_SALT", ""):
+        with patch.multiple("bots.meeting_ai_deeplink_utils", **{
+            "DEEPLINK_SECRET_KEY": "test-secret-key",
+            "DEEPLINK_SALT": "",
+        }):
             with self.assertRaises(DeepLinkCredentialError):
-                resolve_encrypted_userid_credentials("deadbeef")
+                resolve_encrypted_userid_credentials("deadbeefdeadbeefdeadbeefdeadbeef00")
 
 
 class ResolveDeeplinkCredentialsTest(TestCase):

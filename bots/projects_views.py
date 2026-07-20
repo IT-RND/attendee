@@ -55,9 +55,11 @@ from .meeting_summary_guest_utils import (
 )
 from .meeting_ai_api import MeetingAIError, submit_meeting_to_meeting_ai
 from .meeting_ai_credentials_utils import (
+    get_encrypted_userid_from_request,
     resolve_existing_transaction_id_from_request,
     resolve_meeting_ai_credentials_from_request,
 )
+from .meeting_ai_deeplink_utils import looks_like_encrypted_ciphertext
 from .meeting_summary_utils import (
     MeetingSummaryError,
     build_meeting_summary_docx,
@@ -2333,6 +2335,13 @@ class GuestCreateSessionView(View):
             }
             if transaction_id:
                 response_payload["transaction_id"] = transaction_id
+            else:
+                encrypted_userid = get_encrypted_userid_from_request(request)
+                if encrypted_userid and looks_like_encrypted_ciphertext(encrypted_userid):
+                    response_payload["meeting_ai_warning"] = (
+                        "MeetingAI was not synced. The encrypted userid could not be turned into "
+                        "MeetingAI credentials, or the MeetingAI API is not configured on the server."
+                    )
 
             return JsonResponse(
                 response_payload,

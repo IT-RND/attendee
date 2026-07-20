@@ -66,6 +66,13 @@ def resolve_meeting_ai_credentials_from_request(request: HttpRequest) -> tuple[O
     return None, None
 
 
+def get_encrypted_userid_from_request(request: HttpRequest) -> str:
+    return _first_non_empty(
+        request.GET.get("userid"),
+        request.POST.get("userid"),
+    )
+
+
 def resolve_existing_transaction_id_from_request(request: HttpRequest) -> str:
     return _first_non_empty(
         request.POST.get("transaction_id"),
