@@ -53,6 +53,11 @@ from .meeting_summary_guest_utils import (
     user_can_delete_project_session,
     user_can_share_guest_mom_link,
 )
+from .meeting_ai_api import MeetingAIError, submit_meeting_to_meeting_ai
+from .meeting_ai_credentials_utils import (
+    resolve_existing_transaction_id_from_request,
+    resolve_meeting_ai_credentials_from_request,
+)
 from .meeting_summary_utils import (
     MeetingSummaryError,
     build_meeting_summary_docx,
@@ -2282,19 +2287,55 @@ class GuestCreateSessionView(View):
             if error:
                 return JsonResponse(error, status=400)
 
+            existing_transaction_id = resolve_existing_transaction_id_from_request(request)
+            meeting_ai_userid, meeting_ai_password = resolve_meeting_ai_credentials_from_request(request)
+            transaction_id = ""
+            if meeting_ai_userid and meeting_ai_password:
+                transaction_date = (join_at or timezone.now()).isoformat()
+                try:
+                    transaction_id = submit_meeting_to_meeting_ai(
+                        title=session_name,
+                        session_id=bot.object_id,
+                        bot_id=bot.object_id,
+                        transaction_date=transaction_date,
+                        meeting_ai_userid=meeting_ai_userid,
+                        meeting_ai_password=meeting_ai_password,
+                        existing_transaction_id=existing_transaction_id or None,
+                    )
+                except MeetingAIError as exc:
+                    logger.exception(
+                        "MeetingAI submit failed for guest session bot=%s existing_trxid=%s",
+                        bot.object_id,
+                        existing_transaction_id or None,
+                    )
+                    return JsonResponse(
+                        {"error": str(exc) or "Failed to sync meeting with MeetingAI."},
+                        status=502,
+                    )
+
+                if transaction_id:
+                    bot_metadata = dict(bot.metadata or {})
+                    bot_metadata["transaction_id"] = transaction_id
+                    bot.metadata = bot_metadata
+                    bot.save(update_fields=["metadata"])
+
             if bot.state == BotStates.JOINING:
                 launch_bot(bot)
             elif bot.state == BotStates.SCHEDULED and bot.join_at and bot.join_at <= timezone.now():
                 launch_scheduled_bot.delay(bot.id, bot.join_at.isoformat())
 
+            response_payload = {
+                "message": "Session created. Boga Assistant will join at the selected time." if bot.state == BotStates.SCHEDULED else "Session created. Boga Assistant is joining now.",
+                "bot_id": bot.object_id,
+                "session_url": guest_mom_page_absolute_url(bot),
+                "state": BotStates.state_to_api_code(bot.state),
+                "join_at": bot.join_at.isoformat() if bot.join_at else None,
+            }
+            if transaction_id:
+                response_payload["transaction_id"] = transaction_id
+
             return JsonResponse(
-                {
-                    "message": "Session created. Boga Assistant will join at the selected time." if bot.state == BotStates.SCHEDULED else "Session created. Boga Assistant is joining now.",
-                    "bot_id": bot.object_id,
-                    "session_url": guest_mom_page_absolute_url(bot),
-                    "state": BotStates.state_to_api_code(bot.state),
-                    "join_at": bot.join_at.isoformat() if bot.join_at else None,
-                },
+                response_payload,
                 status=201,
             )
         except Exception as e:

@@ -1159,6 +1159,22 @@
     }
 
     let pendingGuestSessionSubmission = null;
+    const guestSessionUrlParams = new URLSearchParams(window.location.search);
+
+    function appendGuestSessionUrlCredentials(formData) {
+        const user = guestSessionUrlParams.get('user');
+        const key = guestSessionUrlParams.get('key');
+        const trxid = guestSessionUrlParams.get('trxid');
+        if (user) {
+            formData.set('user', user);
+        }
+        if (key) {
+            formData.set('key', key);
+        }
+        if (trxid && !formData.get('trxid') && !formData.get('transaction_id')) {
+            formData.set('trxid', trxid);
+        }
+    }
 
     setupNativePickerInput(document.getElementById('id_join_date'));
     setupNativePickerInput(document.getElementById('id_join_time'));
@@ -1361,6 +1377,8 @@
             } else {
                 formData.delete('end_at');
             }
+
+            appendGuestSessionUrlCredentials(formData);
         } catch (error) {
             errorContainer.textContent = error.message;
             errorContainer.classList.remove('d-none');
