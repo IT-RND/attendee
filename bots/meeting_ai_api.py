@@ -297,6 +297,7 @@ def submit_meeting_to_meeting_ai(
     meeting_ai_userid: str,
     meeting_ai_password: str,
     existing_transaction_id: Optional[str] = None,
+    status: Optional[str] = None,
 ) -> str:
     """
     Create or update a MeetingAI meeting record and return transaction_id.
@@ -325,6 +326,8 @@ def submit_meeting_to_meeting_ai(
             "transaction_date": transaction_date,
             "type": "Bot",
         }
+        if status:
+            create_body["status"] = status
         data = _raise_for_meeting_ai_result(
             meeting_ai_create_meeting(create_body, userid=meeting_ai_userid, password=meeting_ai_password),
             "create",

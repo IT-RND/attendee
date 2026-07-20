@@ -2297,12 +2297,13 @@ class GuestCreateSessionView(View):
                 try:
                     transaction_id = submit_meeting_to_meeting_ai(
                         title=session_name,
-                        session_id=bot.object_id,
+                        session_id=bot.mom_guest_token or bot.object_id,
                         bot_id=bot.object_id,
                         transaction_date=transaction_date,
                         meeting_ai_userid=meeting_ai_userid,
                         meeting_ai_password=meeting_ai_password,
                         existing_transaction_id=existing_transaction_id or None,
+                        status=BotStates.state_to_api_code(bot.state),
                     )
                 except MeetingAIError as exc:
                     logger.exception(

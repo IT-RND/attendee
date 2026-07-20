@@ -10,7 +10,7 @@ from bots.meeting_ai_api import (
     submit_meeting_to_meeting_ai,
 )
 from bots.meeting_ai_credentials_utils import resolve_meeting_ai_credentials_from_request
-from bots.models import Bot, Project
+from bots.models import Bot, BotStates, Project
 import bots.meeting_ai_api as meeting_ai_api_module
 
 
@@ -58,21 +58,23 @@ class SubmitMeetingToMeetingAITest(TestCase):
 
         transaction_id = submit_meeting_to_meeting_ai(
             title="Weekly sync",
-            session_id="bot_abc123",
+            session_id="guestmom_token_abc",
             bot_id="bot_abc123",
             transaction_date="2026-07-17T08:11:00.000Z",
             meeting_ai_userid="alice",
             meeting_ai_password="secret",
+            status="scheduled",
         )
 
         self.assertEqual(transaction_id, "NM/D01/202507/00001")
         mock_create.assert_called_once_with(
             {
                 "title": "Weekly sync",
-                "session_id": "bot_abc123",
+                "session_id": "guestmom_token_abc",
                 "bot_id": "bot_abc123",
                 "transaction_date": "2026-07-17T08:11:00.000Z",
                 "type": "Bot",
+                "status": "scheduled",
             },
             userid="alice",
             password="secret",
@@ -193,8 +195,9 @@ class GuestCreateSessionMeetingAIIntegrationTest(TestCase):
         mock_submit.assert_called_once()
         call_kwargs = mock_submit.call_args.kwargs
         self.assertEqual(call_kwargs["title"], "Weekly sync")
-        self.assertEqual(call_kwargs["session_id"], bot.object_id)
+        self.assertEqual(call_kwargs["session_id"], bot.mom_guest_token)
         self.assertEqual(call_kwargs["bot_id"], bot.object_id)
+        self.assertEqual(call_kwargs["status"], BotStates.state_to_api_code(bot.state))
         self.assertEqual(call_kwargs["meeting_ai_userid"], "alice")
         self.assertEqual(call_kwargs["meeting_ai_password"], "secret")
         self.assertIsNone(call_kwargs["existing_transaction_id"])
