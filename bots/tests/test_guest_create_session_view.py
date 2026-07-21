@@ -72,6 +72,9 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertContains(response, "gmeet-bot-guide.png")
         self.assertContains(response, "guestGoogleMeetGuide")
         self.assertContains(response, "Admit entry")
+        self.assertContains(response, "redirectToParentSite")
+        self.assertContains(response, "NAVIGATE_TO")
+        self.assertContains(response, "https://alpha.boga.co.id/WebAppsAlpha/Transactions/NotulenMeeting.aspx")
 
     def test_get_paginates_guest_session_meetings(self):
         starts_at = timezone.now() + timedelta(days=1)

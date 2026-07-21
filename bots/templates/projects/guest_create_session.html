@@ -943,6 +943,84 @@
 </div>
 
 <script>
+    const ERP_RETURN_CONFIG = {
+        notulenListUrl: "{{ erp_notulen_list_url|escapejs }}",
+        parentOrigin: "{{ erp_parent_origin|escapejs }}",
+        erpReturnAlways: {% if erp_return_always %}true{% else %}false{% endif %}
+    };
+    const ERP_RETURN_SESSION_KEY = 'meetingai-erp-notulen-return';
+    const ERP_TRX_DETAIL_SESSION_KEY = 'meetingai-trx-detail-session';
+
+    function referrerIndicatesErpNotulenReturn() {
+        const referrer = document.referrer || '';
+        return referrer.includes('NotulenMeeting.aspx') || referrer.includes('/Transactions/Notulen');
+    }
+
+    function urlParamsIndicateErpNotulenReturn() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('erpReturn') === '1' || params.get('from') === 'notulen' || Boolean(params.get('trxid'));
+    }
+
+    function initializeErpReturnFlow() {
+        if (ERP_RETURN_CONFIG.erpReturnAlways || urlParamsIndicateErpNotulenReturn() || referrerIndicatesErpNotulenReturn()) {
+            sessionStorage.setItem(ERP_RETURN_SESSION_KEY, '1');
+        }
+    }
+
+    function shouldReturnToErpNotulen() {
+        if (ERP_RETURN_CONFIG.erpReturnAlways) {
+            return true;
+        }
+        if (window.parent !== window) {
+            return true;
+        }
+        if (sessionStorage.getItem(ERP_RETURN_SESSION_KEY) === '1') {
+            return true;
+        }
+        if (urlParamsIndicateErpNotulenReturn()) {
+            return true;
+        }
+        return referrerIndicatesErpNotulenReturn();
+    }
+
+    function clearErpReturnSession() {
+        sessionStorage.removeItem(ERP_RETURN_SESSION_KEY);
+        sessionStorage.removeItem(ERP_TRX_DETAIL_SESSION_KEY);
+    }
+
+    function redirectToParentSite(url) {
+        clearErpReturnSession();
+
+        if (window.parent === window) {
+            window.location.replace(url);
+            return;
+        }
+
+        try {
+            window.parent.postMessage(
+                { type: 'NAVIGATE_TO', url: url },
+                ERP_RETURN_CONFIG.parentOrigin
+            );
+        } catch (error) {
+            // Ignore postMessage failures and fall through to navigation fallbacks.
+        }
+
+        try {
+            window.top.location.href = url;
+            return;
+        } catch (error) {
+            // Cross-origin access to window.top is blocked; try same-frame navigation next.
+        }
+
+        try {
+            window.location.assign(url);
+        } catch (error) {
+            window.open(url, '_top');
+        }
+    }
+
+    initializeErpReturnFlow();
+
     const GUEST_ENABLED_PLATFORMS = {
         zoom: {% if guest_session_project %}{{ guest_session_project.is_zoom_enabled|yesno:"true,false" }}{% else %}true{% endif %},
         google_meet: {% if guest_session_project %}{{ guest_session_project.is_google_meet_enabled|yesno:"true,false" }}{% else %}true{% endif %},
@@ -1215,6 +1293,11 @@
             });
         })
         .then(function(payload) {
+            if (shouldReturnToErpNotulen()) {
+                redirectToParentSite(ERP_RETURN_CONFIG.notulenListUrl);
+                return;
+            }
+
             const link = document.createElement('a');
             link.href = payload.session_url;
             link.textContent = 'Buka halaman session';

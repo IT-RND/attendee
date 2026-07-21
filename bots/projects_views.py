@@ -53,6 +53,7 @@ from .meeting_summary_guest_utils import (
     user_can_delete_project_session,
     user_can_share_guest_mom_link,
 )
+from .erp_return_utils import erp_return_template_context
 from .meeting_ai_api import MeetingAIError, submit_meeting_to_meeting_ai
 from .meeting_ai_credentials_utils import (
     get_encrypted_userid_from_request,
@@ -2202,6 +2203,7 @@ class GuestCreateSessionView(View):
         )
         context["guest_session_meetings"] = guest_session_meetings
         context["guest_session_meetings_page"] = guest_session_meetings_page
+        context.update(erp_return_template_context())
         return render(
             request,
             self.template_name,
