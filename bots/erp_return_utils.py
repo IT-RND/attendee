@@ -2,7 +2,7 @@ import os
 
 ERP_NOTULEN_LIST_URL = os.getenv(
     "ERP_NOTULEN_LIST_URL",
-    "https://alpha.boga.co.id/WebAppsAlpha/Transactions/NotulenMeeting.aspx",
+    "https://webapps.boga.co.id/Transactions/NotulenMeeting.aspx",
 ).strip()
 ERP_PARENT_ORIGIN = os.getenv("ERP_PARENT_ORIGIN", "https://alpha.boga.co.id").strip()
 ERP_RETURN_ALWAYS = os.getenv("ERP_RETURN_ALWAYS", "false").lower() in ("1", "true", "yes")
