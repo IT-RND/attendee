@@ -104,6 +104,10 @@ def default_join_bot_chat_message_data(bot: Bot) -> dict:
     }
 
 
+def _site_url_protocol(site_domain: str) -> str:
+    return "http" if site_domain.startswith("localhost") else "https"
+
+
 def build_site_url(path=""):
     """
     Build a full URL using SITE_DOMAIN setting.
@@ -113,8 +117,39 @@ def build_site_url(path=""):
     """
     # Use EXTERNAL_WEBHOOK_SITE_DOMAIN if set (for external webhooks), otherwise use SITE_DOMAIN
     site_domain = os.getenv("EXTERNAL_WEBHOOK_SITE_DOMAIN") or settings.SITE_DOMAIN
-    protocol = "http" if site_domain.startswith("localhost") else "https"
-    return f"{protocol}://{site_domain}{path}"
+    return f"{_site_url_protocol(site_domain)}://{site_domain}{path}"
+
+
+def build_bot_sso_url(path=""):
+    """
+    Build a full URL for Google Meet bot SSO endpoints.
+
+    Always uses SITE_DOMAIN (not EXTERNAL_WEBHOOK_SITE_DOMAIN) so Google Workspace SAML
+    sign-in/sign-out URLs match the deployed meeting-assistant host.
+    """
+    site_domain = settings.SITE_DOMAIN
+    return f"{_site_url_protocol(site_domain)}://{site_domain}{path}"
+
+
+def google_meet_bot_sso_urls():
+    return {
+        "google_meet_sso_sign_in_url": build_bot_sso_url(reverse("bot_sso:google_meet_sign_in")),
+        "google_meet_sso_sign_out_url": build_bot_sso_url(reverse("bot_sso:google_meet_sign_out")),
+    }
+
+
+def google_meet_settings_for_signed_in_bot(project, meeting_url):
+    """
+    Return google_meet_settings when the project has Google Meet bot logins configured.
+    """
+    if meeting_type_from_url(meeting_url) != MeetingTypes.GOOGLE_MEET:
+        return None
+
+    google_meet_bot_login_group = project.google_meet_bot_login_groups.first()
+    if not google_meet_bot_login_group or not google_meet_bot_login_group.google_meet_bot_logins.exists():
+        return None
+
+    return {"use_login": True, "login_mode": "only_if_required"}
 
 
 def send_sync_command(bot, command="sync"):
