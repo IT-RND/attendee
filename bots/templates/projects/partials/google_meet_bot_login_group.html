@@ -3,6 +3,13 @@
         <h5 class="mb-0">Google Meet Bot Logins</h5>
     </div>
     <div class="card-body">
+        <div class="alert alert-secondary mb-3">
+            <p class="mb-2"><strong>Google Workspace SSO URLs</strong> — use these when configuring the Legacy SSO profile in Google Admin:</p>
+            <ul class="mb-0">
+                <li><strong>Sign-in URL:</strong> <code>{{ google_meet_sso_sign_in_url }}</code></li>
+                <li><strong>Sign-out URL:</strong> <code>{{ google_meet_sso_sign_out_url }}</code></li>
+            </ul>
+        </div>
         {% if google_meet_bot_login_group and google_meet_bot_login_group.google_meet_bot_logins.exists %}            
             <div class="table-responsive">
                 <table class="table table-hover">

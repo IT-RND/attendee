@@ -71,8 +71,8 @@ Here are the steps to set it up:
     ```
 8. In the Legacy SSO profile page, enter the following information:
     - Enable legacy SSO profile - Yes
-    - Sign-in URL - https://app.attendee.dev/bot_sso/google_meet_sign_in (For self-hosted instances, use the hostname of your instance instead of app.attendee.dev)
-    - Sign-out URL - https://app.attendee.dev/bot_sso/google_meet_sign_out (For self-hosted instances, use the hostname of your instance instead of app.attendee.dev)
+    - Sign-in URL - https://meeting-assistant.boga.co.id/bot_sso/google_meet_sign_in (For other self-hosted instances, use your deployment hostname instead of meeting-assistant.boga.co.id)
+    - Sign-out URL - https://meeting-assistant.boga.co.id/bot_sso/google_meet_sign_out (For other self-hosted instances, use your deployment hostname instead of meeting-assistant.boga.co.id)
     - Use a domain-specific issuer - Yes
     - Certificate - Upload the cert.pem file you generated in the previous step
 9. Click the "Save" button.

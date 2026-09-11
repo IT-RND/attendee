@@ -31,6 +31,8 @@ from .bots_api_utils import (
     create_webhook_subscription,
     delete_bot,
     delete_project_session,
+    google_meet_bot_sso_urls,
+    google_meet_settings_for_signed_in_bot,
     guest_mom_page_absolute_url,
     project_session_can_be_deleted,
 )
@@ -325,6 +327,7 @@ class ProjectUrlContextMixin:
             "user_can_manage_sensitive_integrations": user_can_manage_sensitive_integrations(self.request.user),
             "debug_mode": True if settings.DEBUG else False,
             "zoom_oauth_redirect_uri": zoom_oauth_redirect_uri(project),
+            **google_meet_bot_sso_urls(),
         }
 
 
@@ -2277,6 +2280,9 @@ class GuestCreateSessionView(View):
             zoom_settings = _guest_session_zoom_settings(project, meeting_url)
             if zoom_settings:
                 data["zoom_settings"] = zoom_settings
+            google_meet_settings = google_meet_settings_for_signed_in_bot(project, meeting_url)
+            if google_meet_settings:
+                data["google_meet_settings"] = google_meet_settings
             if join_at:
                 data["join_at"] = join_at.isoformat()
 
@@ -2394,10 +2400,14 @@ class CreateBotView(LoginRequiredMixin, ProjectUrlContextMixin, View):
         try:
             project = get_project_for_user(user=request.user, project_object_id=object_id)
 
+            meeting_url = request.POST.get("meeting_url")
             data = {
-                "meeting_url": request.POST.get("meeting_url"),
+                "meeting_url": meeting_url,
                 "bot_name": DEFAULT_BOT_NAME,
             }
+            google_meet_settings = google_meet_settings_for_signed_in_bot(project, meeting_url)
+            if google_meet_settings:
+                data["google_meet_settings"] = google_meet_settings
 
             bot, error = create_bot(data=data, source=BotCreationSource.DASHBOARD, project=project)
             if error:

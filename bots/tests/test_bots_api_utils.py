@@ -6,7 +6,18 @@ from django.test import TestCase
 from django.utils import timezone
 
 from accounts.models import Organization
-from bots.bots_api_utils import BotCreationSource, build_site_url, create_bot, create_webhook_subscription, patch_bot, validate_bot_concurrency_limit, validate_meeting_url_and_credentials
+from bots.bots_api_utils import (
+    BotCreationSource,
+    build_bot_sso_url,
+    build_site_url,
+    create_bot,
+    create_webhook_subscription,
+    google_meet_settings_for_signed_in_bot,
+    patch_bot,
+    validate_bot_concurrency_limit,
+    validate_meeting_url_and_credentials,
+)
+from bots.models import GoogleMeetBotLogin, GoogleMeetBotLoginGroup
 from bots.calendars_api_utils import create_calendar
 from bots.models import (
     Bot,
@@ -56,6 +67,52 @@ class TestBuildSiteUrl(TestCase):
         mock_settings.SITE_DOMAIN = "production.example.com"
         result = build_site_url("/callback")
         self.assertEqual(result, "http://localhost:9000/callback")
+
+
+class TestBuildBotSsoUrl(TestCase):
+    @patch("bots.bots_api_utils.settings")
+    @patch.dict("os.environ", {"EXTERNAL_WEBHOOK_SITE_DOMAIN": "external.example.com"}, clear=True)
+    def test_build_bot_sso_url_ignores_external_webhook_domain(self, mock_settings):
+        mock_settings.SITE_DOMAIN = "meeting-assistant.boga.co.id"
+        result = build_bot_sso_url("/bot_sso/google_meet_sign_in")
+        self.assertEqual(result, "https://meeting-assistant.boga.co.id/bot_sso/google_meet_sign_in")
+
+    @patch("bots.bots_api_utils.settings")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_bot_sso_url_uses_localhost_http(self, mock_settings):
+        mock_settings.SITE_DOMAIN = "localhost:8000"
+        result = build_bot_sso_url("/bot_sso/google_meet_sign_out")
+        self.assertEqual(result, "http://localhost:8000/bot_sso/google_meet_sign_out")
+
+
+class TestGoogleMeetSettingsForSignedInBot(TestCase):
+    def setUp(self):
+        organization = Organization.objects.create(name="Test Organization")
+        self.project = Project.objects.create(name="Test Project", organization=organization)
+
+    def test_returns_none_without_google_meet_bot_logins(self):
+        result = google_meet_settings_for_signed_in_bot(self.project, "https://meet.google.com/abc-defg-hij")
+        self.assertIsNone(result)
+
+    def test_returns_none_for_non_google_meet_url(self):
+        group = GoogleMeetBotLoginGroup.objects.create(project=self.project)
+        GoogleMeetBotLogin.objects.create(
+            group=group,
+            workspace_domain="example.com",
+            email="bot@example.com",
+        )
+        result = google_meet_settings_for_signed_in_bot(self.project, "https://zoom.us/j/123456789")
+        self.assertIsNone(result)
+
+    def test_returns_signed_in_settings_when_logins_exist(self):
+        group = GoogleMeetBotLoginGroup.objects.create(project=self.project)
+        GoogleMeetBotLogin.objects.create(
+            group=group,
+            workspace_domain="example.com",
+            email="bot@example.com",
+        )
+        result = google_meet_settings_for_signed_in_bot(self.project, "https://meet.google.com/abc-defg-hij")
+        self.assertEqual(result, {"use_login": True, "login_mode": "only_if_required"})
 
 
 class TestValidateMeetingUrlAndCredentials(TestCase):

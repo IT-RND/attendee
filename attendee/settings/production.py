@@ -7,6 +7,8 @@ from .base import *
 from .base import LOG_FORMATTERS
 
 DEBUG = False
+
+SITE_DOMAIN = os.getenv("SITE_DOMAIN", "meeting-assistant.boga.co.id")
 # With DEBUG=False, '*' in ALLOWED_HOSTS matches nothing; use explicit hosts or a
 # leading-dot domain (e.g. '.example.com') for subdomains. Override via ALLOWED_HOSTS.
 ALLOWED_HOSTS = [

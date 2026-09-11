@@ -12,6 +12,8 @@ from bots.models import (
     BotEventSubTypes,
     BotEventTypes,
     BotStates,
+    GoogleMeetBotLogin,
+    GoogleMeetBotLoginGroup,
     Project,
     ZoomOAuthApp,
     ZoomOAuthConnection,
@@ -292,6 +294,32 @@ class GuestCreateSessionViewTest(TestCase):
         self.assertEqual(response.status_code, 201)
         bot = Bot.objects.get(object_id=response.json()["bot_id"])
         self.assertNotIn("onbehalf_token", bot.settings["zoom_settings"])
+        mock_launch_bot.assert_called_once_with(bot)
+
+    @patch("bots.projects_views.launch_bot")
+    def test_guest_google_meet_session_uses_signed_in_settings_when_logins_exist(self, mock_launch_bot):
+        google_meet_bot_login_group = GoogleMeetBotLoginGroup.objects.create(project=self.guest_project)
+        google_meet_bot_login = GoogleMeetBotLogin.objects.create(
+            group=google_meet_bot_login_group,
+            workspace_domain="example.com",
+            email="bot@example.com",
+        )
+        google_meet_bot_login.set_credentials({"private_key": "test-private-key", "cert": "test-cert"})
+
+        response = self.client.post(
+            self.url,
+            data={
+                "session_name": "Guest signed-in Meet session",
+                "meeting_url": "https://meet.google.com/xyz-uvwx-rst",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        bot = Bot.objects.get(object_id=response.json()["bot_id"])
+        self.assertEqual(
+            bot.settings["google_meet_settings"],
+            {"use_login": True, "login_mode": "only_if_required"},
+        )
         mock_launch_bot.assert_called_once_with(bot)
 
     @patch("bots.projects_views.launch_bot")
