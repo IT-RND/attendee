@@ -1,4 +1,4 @@
-# Participant Events
+﻿# Participant Events
 
 Boga (Meeting) Assistant tracks all participants in a meeting and when they take certain actions. This information can be used for tracking meeting attendance or triggering actions when a certain number of participants have joined. It can also be used to track when participants are speaking.
 
@@ -17,7 +17,7 @@ Currently, there are four types of participant events:
 
 You can retrieve a list of participant events for a specific bot by making a GET request to the `/bots/{bot_id}/participant_events` endpoint.
 
-For more details on the API, see the [API reference](https://docs.attendee.dev/api-reference#tag/bots/get/api/v1/bots/{object_id}/participant_events).
+For more details on the API, see the [API reference](https://docs.attendee.dev/api-reference/tag/bots/get/api/v1/bots/object_id/participant_events).
 
 ## Webhooks for Participant Events
 

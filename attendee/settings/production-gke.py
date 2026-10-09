@@ -1,10 +1,8 @@
 import os
-import sys
-
-import dj_database_url
 
 from .base import *
-from .base import LOG_FORMATTERS
+from .base import LOG_FORMATTERS, LOG_HANDLER_NAMES, LOG_HANDLERS
+from .db import default_database
 
 DEBUG = False
 # With DEBUG=False, '*' in ALLOWED_HOSTS matches nothing; use explicit hosts or a
@@ -19,12 +17,7 @@ ALLOWED_HOSTS = [
 ]
 
 DATABASES = {
-    "default": dj_database_url.config(
-        env="DATABASE_URL",
-        conn_max_age=600,
-        conn_health_checks=True,
-        ssl_require=True,
-    ),
+    "default": default_database(ssl_require=True),
 }
 
 # PRESERVE CELERY TASKS IF WORKER IS SHUT DOWN
@@ -76,23 +69,17 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": LOG_FORMATTERS,
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "stream": sys.stdout,
-            "formatter": os.getenv("ATTENDEE_LOG_FORMAT"),  # `None` (default formatter) is the default
-        },
-    },
+    "handlers": LOG_HANDLERS,
     "root": {
-        "handlers": ["console"],
+        "handlers": LOG_HANDLER_NAMES,
         "level": os.getenv("ATTENDEE_LOG_LEVEL", "INFO"),
     },
     "loggers": {
         "django": {
-            "handlers": ["console"],
+            "handlers": LOG_HANDLER_NAMES,
             "level": os.getenv("ATTENDEE_LOG_LEVEL", "INFO"),
             "propagate": False,
         },
-        "xmlschema": {"level": "WARNING", "handlers": ["console"], "propagate": False},
+        "xmlschema": {"level": "WARNING", "handlers": LOG_HANDLER_NAMES, "propagate": False},
     },
 }

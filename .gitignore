@@ -99,4 +99,5 @@ client_secret_*.json
 db.sqlite3
 34.128.99.163
 custom/
-docker-compose.yamlhttp://34.128.99.163/
+docker-compose.yaml
+.idea/

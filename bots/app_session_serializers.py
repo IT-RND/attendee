@@ -11,7 +11,6 @@ from drf_spectacular.utils import (
     extend_schema_field,
 )
 
-
 def normalize_zoom_rtms_dict(value: dict) -> dict:
     """
     Accept either the RTMS object posted by clients or a Zoom webhook envelope.
@@ -40,41 +39,51 @@ def normalize_zoom_rtms_dict(value: dict) -> dict:
     return {k: v for k, v in normalized.items() if v is not None}
 
 
-@extend_schema_field(
-    {
-        "type": "object",
-        "properties": {
-            "meeting_uuid": {
-                "type": "string",
-                "description": "The UUID of the Zoom meeting",
-            },
-            "rtms_stream_id": {
-                "type": "string",
-                "description": "The RTMS stream ID for the Zoom meeting",
-            },
-            "server_urls": {
-                "oneOf": [
-                    {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of server URLs for the RTMS connection (Zoom RTMS)",
-                    },
-                    {
-                        "type": "string",
-                        "description": "Single signaling/server URL (legacy or simplified clients)",
-                    },
-                    {
-                        "type": "object",
-                        "description": "Map of RTMS server URLs (e.g. signaling / all)",
-                        "additionalProperties": True,
-                    },
-                ],
-            },
+ZOOM_RTMS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "meeting_uuid": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The UUID of the Zoom meeting",
         },
-        "required": ["meeting_uuid", "rtms_stream_id", "server_urls"],
-        "additionalProperties": False,
-    }
-)
+        "rtms_stream_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The RTMS stream ID for the Zoom meeting",
+        },
+        "server_urls": {
+            "oneOf": [
+                {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Single signaling/server URL (legacy or simplified clients)",
+                },
+                {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 1,
+                    "description": "List of server URLs for the RTMS connection (Zoom RTMS)",
+                },
+                {
+                    "type": "object",
+                    "minProperties": 1,
+                    "description": "Map of RTMS server URLs (e.g. signaling / all)",
+                    "additionalProperties": True,
+                },
+            ],
+        },
+        "operator_id": {
+            "type": "string",
+            "description": "The ID of the user who started the RTMS stream",
+        },
+    },
+    "required": ["meeting_uuid", "rtms_stream_id", "server_urls"],
+    "additionalProperties": False,
+}
+
+
+@extend_schema_field(ZOOM_RTMS_SCHEMA)
 class ZoomRTMSJSONField(serializers.JSONField):
     pass
 
@@ -87,24 +96,6 @@ class CreateAppSessionSerializer(CreateBotSerializer):
 
     zoom_rtms = ZoomRTMSJSONField(help_text="Zoom RTMS configuration containing meeting UUID, stream ID, and server URLs", required=True)
 
-    ZOOM_RTMS_SCHEMA = {
-        "type": "object",
-        "properties": {
-            "meeting_uuid": {"type": "string"},
-            "rtms_stream_id": {"type": "string"},
-            "server_urls": {
-                "oneOf": [
-                    {"type": "string", "minLength": 1},
-                    {"type": "array", "items": {"type": "string"}, "minItems": 1},
-                    {"type": "object", "minProperties": 1},
-                ]
-            },
-            "operator_id": {"type": "string"},
-        },
-        "required": ["meeting_uuid", "rtms_stream_id", "server_urls"],
-        "additionalProperties": False,
-    }
-
     class Meta(BotSerializer.Meta):
         fields = [field for field in BotSerializer.Meta.fields if field not in ["name", "meeting_url", "join_at"]] + ["zoom_rtms"]
 
@@ -115,7 +106,7 @@ class CreateAppSessionSerializer(CreateBotSerializer):
         normalized = normalize_zoom_rtms_dict(value)
 
         try:
-            jsonschema.validate(instance=normalized, schema=self.ZOOM_RTMS_SCHEMA)
+            jsonschema.validate(instance=normalized, schema=ZOOM_RTMS_SCHEMA)
         except jsonschema.exceptions.ValidationError as e:
             raise serializers.ValidationError(e.message)
 

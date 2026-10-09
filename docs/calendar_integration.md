@@ -1,4 +1,4 @@
-# Calendar Integration
+﻿# Calendar Integration
 
 Boga (Meeting) Assistant's calendar integration lets you automatically schedule bots to join meetings from your users' Google or Microsoft calendars. You store your users' calendar credentials in Boga (Meeting) Assistant, which then syncs events through the Google and Microsoft calendar APIs. Your application's logic decides which events the bots should join.
 
@@ -59,7 +59,7 @@ See the `handleCalendarEventsUpdate` function in the [example app](https://githu
 
 Now that you're syncing the calendar events from Boga (Meeting) Assistant, you'll need to add code to schedule bots for them. To schedule a bot for a calendar event, just use the normal [POST /bots](https://docs.attendee.dev/api-reference#tag/bots/post/api/v1/bots) endpoint, but include the `calendar_event_id` parameter to associate the bot with the calendar event. The resulting bot will be a scheduled bot with a `join_at` time, but unlike normal scheduled bots, the `join_at` will be a read-only property determined by the event's start time. Also, if the calendar event is cancelled, the bot will be deleted.
 
-If you want to unschedule a bot for a calendar event, make a request to the [DELETE /bots/{bot_id}](https://docs.attendee.dev/api-reference#tag/bots/delete/api/v1/bots/{object_id}) endpoint.
+If you want to unschedule a bot for a calendar event, make a request to the [DELETE /bots/{bot_id}](https://docs.attendee.dev/api-reference/tag/bots/delete/api/v1/bots/object_id) endpoint.
 
 The question of which calendar events get bots scheduled for them will depend on your application's business logic. It is possible to schedule multiple bots for a single event. To add an additional safeguard to prevent scheduling duplicate bots for the same event, you can pass the `deduplication_key` parameter in the bot creation request. You can set this value equal to the event's id.
 
@@ -87,4 +87,4 @@ Boga (Meeting) Assistant syncs all events in the calendar that are between 1 day
 
 ### Which of a user's calendars does Boga (Meeting) Assistant sync?
 
-This is determined by the `platform_uuid` parameter you pass when creating the calendar via the [POST /calendars](https://docs.attendee.dev/api-reference#tag/calendars/post/api/v1/calendars) request. By default, this parameter is null, which means we sync the user's primary calendar. You can set the parameter to a non-null value to sync a non-primary calendar.
+This is determined by the `platform_uuid` parameter you pass when creating the calendar via the [POST /calendars](https://docs.attendee.dev/api-reference/tag/calendars/post/api/v1/calendars) request. By default, this parameter is null, which means we sync the user's primary calendar. You can set the parameter to a non-null value to sync a non-primary calendar.

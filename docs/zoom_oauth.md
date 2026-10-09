@@ -1,4 +1,4 @@
-# Boga (Meeting) Assistant-managed Zoom OAuth
+﻿# Boga (Meeting) Assistant-managed Zoom OAuth
 
 Boga (Meeting) Assistant's managed Zoom OAuth feature gives your Zoom Bots additional capabilities by generating certain Zoom SDK tokens when they join meetings. Currently, two token types are supported:
 - *Local Recording Token*: Lets the bot record meetings without asking permission from the host
@@ -39,7 +39,7 @@ You'll need to create a Zoom OAuth App that your users will authorize. We recomm
 
 Once you've created your Zoom app, you need to register it with Boga (Meeting) Assistant. We recommend creating Boga (Meeting) Assistant projects for development and production. These projects will correspond to your development and production Zoom applications.
 
-1. Go to **Settings → Credentials**
+1. Go to **Settings â†’ Credentials**
 2. Under Zoom OAuth App Credentials, click **"Add OAuth App"**
 3. Enter your Zoom Client ID, Client Secret and Webhook Secret *(Note: Webhook secret is only needed if you are using the local recording token)*
 
@@ -98,7 +98,7 @@ Yes, this is Zoom's [official deadline](https://developers.zoom.us/blog/transiti
 
 ### Why can't I delete the Zoom OAuth App credentials?
 
-We don't allow you to delete the Zoom OAuth App credentials if there are any Zoom OAuth connections associated with it. You will need to intentionally delete all the associated Zoom OAuth connections first. You can do this by [listing](https://docs.attendee.dev/api-reference#tag/zoom-oauth-connections/get/api/v1/zoom_oauth_connections) all the associated Zoom OAuth connections and then [deleting](https://docs.attendee.dev/api-reference#tag/zoom-oauth-connections/delete/api/v1/zoom_oauth_connections/{object_id}) them one by one.
+We don't allow you to delete the Zoom OAuth App credentials if there are any Zoom OAuth connections associated with it. You will need to intentionally delete all the associated Zoom OAuth connections first. You can do this by [listing](https://docs.attendee.dev/api-reference/tag/zoom-oauth-connections/get/api/v1/zoom_oauth_connections) all the associated Zoom OAuth connections and then [deleting](https://docs.attendee.dev/api-reference/tag/zoom-oauth-connections/delete/api/v1/zoom_oauth_connections/object_id) them one by one.
 
 ### What happens if the onbehalf token user is not in the meeting when the bot joins?
 
