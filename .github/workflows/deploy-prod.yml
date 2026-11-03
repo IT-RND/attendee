@@ -1,0 +1,76 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and restart production
+    runs-on: [self-hosted, linux, attendee-boga]
+    environment: production
+    env:
+      SERVER_ENV_FILE: /srv/boga-meeting-assistant/.env
+      DEPLOY_DIR: /srv/boga-meeting-assistant
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify Docker
+        run: |
+          set -euo pipefail
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "docker is not installed"
+            exit 1
+          fi
+          if ! docker compose version >/dev/null 2>&1; then
+            echo "docker compose is not installed"
+            exit 1
+          fi
+
+      - name: Update /srv/boga-meeting-assistant
+        run: |
+          set -euo pipefail
+          mkdir -p "$DEPLOY_DIR"
+          if [ "$(readlink -f "$GITHUB_WORKSPACE")" = "$(readlink -f "$DEPLOY_DIR")" ]; then
+            echo "Checkout is already ${DEPLOY_DIR}"
+          elif command -v rsync >/dev/null 2>&1; then
+            rsync -a --exclude .git --exclude .env ./ "$DEPLOY_DIR"/
+          else
+            tar --exclude .git --exclude .env -cf - . | tar -C "$DEPLOY_DIR" -xf -
+          fi
+
+      - name: Load server env file
+        working-directory: /srv/boga-meeting-assistant
+        run: |
+          set -euo pipefail
+          if [ -f .env ]; then
+            echo "Keeping existing .env"
+          elif [ -f "$SERVER_ENV_FILE" ]; then
+            cp "$SERVER_ENV_FILE" .env
+          else
+            echo "Env file must live at ${SERVER_ENV_FILE}"
+            exit 1
+          fi
+
+      - name: Build production app services
+        working-directory: /srv/boga-meeting-assistant
+        run: docker compose -f dev.docker-compose.yaml build attendee-app-local attendee-worker-local attendee-scheduler-local
+
+      - name: Restart production
+        working-directory: /srv/boga-meeting-assistant
+        run: docker compose -f dev.docker-compose.yaml up -d --remove-orphans
+
+      - name: Show service status
+        working-directory: /srv/boga-meeting-assistant
+        run: docker compose -f dev.docker-compose.yaml ps attendee-app-local attendee-worker-local attendee-scheduler-local postgres redis
