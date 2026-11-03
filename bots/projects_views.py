@@ -37,6 +37,7 @@ from .bots_api_utils import (
     delete_project_session,
     guest_mom_page_absolute_url,
     project_session_can_be_deleted,
+    stop_session_from_dashboard,
 )
 from .google_calendar_oauth import (
     GoogleCalendarOAuthError,
@@ -1421,7 +1422,7 @@ class GenerateMeetingSummaryView(LoginRequiredMixin, ProjectUrlContextMixin, Vie
 
 
 class ManualCompleteBotSessionView(LoginRequiredMixin, ProjectUrlContextMixin, View):
-    """Let a logged-in project user mark a stuck bot session as ended (dashboard recovery)."""
+    """Ask a live bot to leave, or mark a stuck session ended when the worker is gone."""
 
     def post(self, request, object_id, bot_object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
@@ -1439,12 +1440,18 @@ class ManualCompleteBotSessionView(LoginRequiredMixin, ProjectUrlContextMixin, V
             messages.error(request, "This session cannot be manually completed in its current state.")
             return _detail_redirect()
         try:
-            BotEventManager.manual_complete_session_for_stuck_bot(bot, resolved_by_user_id=request.user.id)
+            outcome = stop_session_from_dashboard(bot, resolved_by_user_id=request.user.id)
         except ValidationError as exc:
             err_text = str(exc)
             if getattr(exc, "messages", None):
                 err_text = exc.messages[0]
             messages.error(request, err_text)
+            return _detail_redirect()
+        if outcome == "leave_requested":
+            messages.success(request, "Bot diminta keluar dari meeting. Status berubah setelah bot benar-benar keluar.")
+            return _detail_redirect()
+        if outcome == "disconnect_requested":
+            messages.success(request, "Sesi diminta berhenti. Worker akan memutus koneksi.")
             return _detail_redirect()
         messages.success(
             request,

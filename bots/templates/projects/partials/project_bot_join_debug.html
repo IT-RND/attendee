@@ -70,7 +70,7 @@
                 {% if bot_join_debug_diagnostics.join_minutes and bot_join_debug_diagnostics.join_minutes >= 20 %}
                     <strong class="text-danger">Join sudah {{ bot_join_debug_diagnostics.join_minutes }} menit tanpa snapshot.</strong>
                     Kemungkinan: worker belum pakai versi terbaru, Chrome macet, atau join belum sampai fase snapshot.
-                    Klik <strong>Selesaikan meeting di dashboard</strong>, lalu cek log worker untuk
+                    Klik <strong>Selesaikan meeting di dashboard</strong>. Jika worker masih hidup, bot akan keluar dari meeting. Jika worker macet, sesi hanya ditutup di dashboard. Lalu cek log worker untuk
                     <code>Waiting for captions button</code> / <code>Clicking the join button</code>.
                     Pastikan host <strong>Admit entry</strong> di Google Meet.
                 {% else %}

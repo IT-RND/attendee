@@ -10,6 +10,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.urls import reverse
+from django.utils import timezone
 
 from .meeting_summary_guest_utils import new_mom_guest_token
 from .meeting_url_utils import meeting_type_from_url
@@ -18,6 +19,7 @@ from .models import (
     BotChatMessageRequest,
     BotChatMessageToOptions,
     BotEventManager,
+    BotEventSubTypes,
     BotEventTypes,
     BotMediaRequest,
     BotMediaRequestMediaTypes,
@@ -140,6 +142,43 @@ def send_sync_command(bot, command="sync"):
     channel = f"bot_{bot.id}"
     message = {"command": command}
     redis_client.publish(channel, json.dumps(message))
+
+
+# Heartbeats are written about once a minute. The cleanup job treats a bot as
+# dead after 10 minutes without one, so use the same window here.
+WORKER_COMMAND_HEARTBEAT_WINDOW_SECONDS = 600
+
+
+def worker_can_receive_commands(bot) -> bool:
+    if not bot.last_heartbeat_timestamp:
+        return False
+    return bot.last_heartbeat_timestamp >= int(timezone.now().timestamp()) - WORKER_COMMAND_HEARTBEAT_WINDOW_SECONDS
+
+
+def stop_session_from_dashboard(bot, *, resolved_by_user_id: int | None = None) -> str:
+    """Stop a session from the dashboard.
+
+    A live worker is asked to leave the meeting (or disconnect an app session).
+    A stuck or dead worker cannot act on that command, so the session is marked
+    ended in the dashboard instead.
+    """
+    if worker_can_receive_commands(bot):
+        if bot.session_type == SessionTypes.APP_SESSION and BotEventManager.event_can_be_created_for_state(BotEventTypes.APP_SESSION_DISCONNECT_REQUESTED, bot.state):
+            BotEventManager.create_event(bot, BotEventTypes.APP_SESSION_DISCONNECT_REQUESTED)
+            send_sync_command(bot)
+            return "disconnect_requested"
+
+        if bot.session_type != SessionTypes.APP_SESSION and BotEventManager.event_can_be_created_for_state(BotEventTypes.LEAVE_REQUESTED, bot.state):
+            BotEventManager.create_event(
+                bot,
+                BotEventTypes.LEAVE_REQUESTED,
+                event_sub_type=BotEventSubTypes.LEAVE_REQUESTED_USER_REQUESTED,
+            )
+            send_sync_command(bot)
+            return "leave_requested"
+
+    BotEventManager.manual_complete_session_for_stuck_bot(bot, resolved_by_user_id=resolved_by_user_id)
+    return "manual_completed"
 
 
 def create_bot_chat_message_request(bot, chat_message_data):
