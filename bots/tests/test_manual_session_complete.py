@@ -1,9 +1,12 @@
+from unittest.mock import patch
+
 from django.core.files.base import ContentFile
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import Organization, User, UserRole
-from bots.models import Bot, BotDebugScreenshot, BotEvent, BotEventManager, BotEventTypes, BotStates, Project
+from bots.models import Bot, BotDebugScreenshot, BotEvent, BotEventManager, BotEventSubTypes, BotEventTypes, BotStates, Project, SessionTypes
 
 
 class ManualCompleteBotSessionViewTest(TestCase):
@@ -65,6 +68,59 @@ class ManualCompleteBotSessionViewTest(TestCase):
         response = self.client.get(detail_url)
         self.assertContains(response, "click_captions_button")
         self.assertContains(response, "<video")
+
+    @patch("bots.bots_api_utils.send_sync_command")
+    def test_live_bot_is_asked_to_leave_the_meeting(self, mock_sync):
+        self.bot.last_heartbeat_timestamp = int(timezone.now().timestamp())
+        self.bot.save(update_fields=["last_heartbeat_timestamp"])
+        url = reverse("projects:manual-complete-bot-session", args=[self.project.object_id, self.bot.object_id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(response.url.endswith("#bot-join-debug"))
+        self.bot.refresh_from_db()
+        self.assertEqual(self.bot.state, BotStates.LEAVING)
+        last = self.bot.last_bot_event()
+        self.assertEqual(last.event_type, BotEventTypes.LEAVE_REQUESTED)
+        self.assertEqual(last.event_sub_type, BotEventSubTypes.LEAVE_REQUESTED_USER_REQUESTED)
+        mock_sync.assert_called_once_with(self.bot)
+
+    @patch("bots.bots_api_utils.send_sync_command")
+    def test_stale_heartbeat_still_closes_session_without_leave(self, mock_sync):
+        self.bot.last_heartbeat_timestamp = int(timezone.now().timestamp()) - 601
+        self.bot.save(update_fields=["last_heartbeat_timestamp"])
+        url = reverse("projects:manual-complete-bot-session", args=[self.project.object_id, self.bot.object_id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302)
+        self.bot.refresh_from_db()
+        self.assertEqual(self.bot.state, BotStates.ENDED)
+        self.assertEqual(self.bot.last_bot_event().event_type, BotEventTypes.MANUAL_SESSION_COMPLETED)
+        mock_sync.assert_not_called()
+
+    @patch("bots.bots_api_utils.send_sync_command")
+    def test_live_app_session_is_asked_to_disconnect(self, mock_sync):
+        self.bot.session_type = SessionTypes.APP_SESSION
+        self.bot.state = BotStates.CONNECTED
+        self.bot.last_heartbeat_timestamp = int(timezone.now().timestamp())
+        self.bot.save(update_fields=["session_type", "state", "last_heartbeat_timestamp"])
+        url = reverse("projects:manual-complete-app-session", args=[self.project.object_id, self.bot.object_id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302)
+        self.bot.refresh_from_db()
+        self.assertEqual(self.bot.state, BotStates.DISCONNECTING)
+        self.assertEqual(self.bot.last_bot_event().event_type, BotEventTypes.APP_SESSION_DISCONNECT_REQUESTED)
+        mock_sync.assert_called_once_with(self.bot)
+
+    @patch("bots.bots_api_utils.send_sync_command")
+    def test_fatal_error_with_fresh_heartbeat_still_marks_ended(self, mock_sync):
+        self.bot.state = BotStates.FATAL_ERROR
+        self.bot.last_heartbeat_timestamp = int(timezone.now().timestamp())
+        self.bot.save(update_fields=["state", "last_heartbeat_timestamp"])
+        url = reverse("projects:manual-complete-bot-session", args=[self.project.object_id, self.bot.object_id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302)
+        self.bot.refresh_from_db()
+        self.assertEqual(self.bot.state, BotStates.ENDED)
+        mock_sync.assert_not_called()
 
     def test_manual_complete_not_allowed_from_ready(self):
         self.bot.state = BotStates.READY
