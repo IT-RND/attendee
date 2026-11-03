@@ -14,7 +14,7 @@ concurrency:
 jobs:
   deploy:
     name: Build and restart production
-    runs-on: [self-hosted, linux, attendee-boga]
+    runs-on: [self-hosted, Linux, attendee-boga]
     environment: production
     env:
       SERVER_ENV_FILE: /srv/boga-meeting-assistant/.env
